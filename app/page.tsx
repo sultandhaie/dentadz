@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { ComponentType, SVGProps } from "react";
 import {
   ArrowRight,
@@ -267,9 +268,13 @@ function SectionHeader({
 function Logo({ light = false }: { light?: boolean }) {
   return (
     <Link href="/" className="flex items-center gap-3">
-      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0F766E] to-[#2563EB] text-white shadow-lg shadow-teal-700/20">
-        <Stethoscope className="h-6 w-6" aria-hidden="true" />
-      </span>
+      <Image
+        src="/logo.png"
+        alt="DentaDZ Logo"
+        width={44}
+        height={44}
+        className="h-11 w-11"
+      />
       <span>
         <span className={cx("block text-lg font-bold leading-5", light ? "text-white" : "text-[#0F172A]")}>
           Denta<span className="text-[#0F766E]">DZ</span>
@@ -306,7 +311,7 @@ function MarketingNavbar() {
             FR
             <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />
           </button>
-          <Link href="/dashboard" className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50">
+          <Link href="/login" className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50">
             Se connecter
           </Link>
           <Link href="#demo" className="inline-flex h-10 items-center justify-center rounded-xl bg-gradient-to-r from-[#0F766E] to-[#2563EB] px-4 text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition hover:-translate-y-0.5">
