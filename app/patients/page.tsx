@@ -532,14 +532,14 @@ function PatientMobileCard({ patient }: { patient: Patient }) {
 
 function Pagination() {
   return (
-    <div className="mt-5 flex flex-col gap-3 border-t border-[#E2E8F0] pt-4 xl:flex-row xl:items-center xl:justify-between">
-      <p className="text-sm font-semibold text-[#64748B]">
+    <div className="mt-5 grid gap-3 border-t border-[#E2E8F0] pt-4 2xl:grid-cols-[1fr_auto_auto] 2xl:items-center 2xl:justify-between">
+      <p className="text-sm font-semibold text-[#64748B] 2xl:whitespace-nowrap">
         Affichage 1–8 sur 128 patients
       </p>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex max-w-full flex-wrap items-center gap-1.5 sm:gap-2">
         <button
           type="button"
-          className="inline-flex h-9 items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#64748B] transition hover:bg-slate-50"
+          className="inline-flex h-9 items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#64748B] transition hover:bg-slate-50 sm:px-3"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           Précédent
@@ -549,7 +549,7 @@ function Pagination() {
             type="button"
             key={page}
             className={cx(
-              "h-9 min-w-9 rounded-xl px-3 text-sm font-bold transition",
+              "h-9 min-w-9 rounded-xl px-2.5 text-sm font-bold transition sm:px-3",
               page === "1"
                 ? "bg-[#0F766E] text-white shadow-md shadow-teal-700/20"
                 : "border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50",
@@ -560,7 +560,7 @@ function Pagination() {
         ))}
         <button
           type="button"
-          className="inline-flex h-9 items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50"
+          className="inline-flex h-9 items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50 sm:px-3"
         >
           Suivant
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -568,7 +568,7 @@ function Pagination() {
       </div>
       <button
         type="button"
-        className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50"
+        className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50"
       >
         8 par page
         <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />

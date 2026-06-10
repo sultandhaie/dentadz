@@ -1,4 +1,5 @@
 import type { ComponentType, ReactNode, SVGProps } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {
   Bell,
@@ -18,7 +19,17 @@ import {
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
-type ShellRoute = "dashboard" | "patients" | "rendez-vous";
+type ShellRoute =
+  | "dashboard"
+  | "patients"
+  | "rendez-vous"
+  | "salle-attente"
+  | "traitements"
+  | "plan-dentaire"
+  | "paiements"
+  | "ordonnances"
+  | "rapports"
+  | "parametres";
 
 const navigationItems: Array<{
   label: string;
@@ -29,13 +40,13 @@ const navigationItems: Array<{
   { label: "Dashboard", href: "/dashboard", route: "dashboard", icon: LayoutDashboard },
   { label: "Patients", href: "/patients", route: "patients", icon: Users },
   { label: "Rendez-vous", href: "/rendez-vous", route: "rendez-vous", icon: Calendar },
-  { label: "Salle d’attente", href: "#", icon: Users },
-  { label: "Traitements", href: "#", icon: Stethoscope },
-  { label: "Plan dentaire", href: "#", icon: ClipboardList },
-  { label: "Paiements", href: "#", icon: CreditCard },
-  { label: "Ordonnances", href: "#", icon: FileText },
-  { label: "Rapports", href: "#", icon: ReceiptText },
-  { label: "Paramètres", href: "#", icon: Settings },
+  { label: "Salle d’attente", href: "/salle-attente", route: "salle-attente", icon: Users },
+  { label: "Traitements", href: "/traitements", route: "traitements", icon: Stethoscope },
+  { label: "Plan dentaire", href: "/plan-dentaire", route: "plan-dentaire", icon: ClipboardList },
+  { label: "Paiements", href: "/paiements", route: "paiements", icon: CreditCard },
+  { label: "Ordonnances", href: "/ordonnances", route: "ordonnances", icon: FileText },
+  { label: "Rapports", href: "/rapports", route: "rapports", icon: ReceiptText },
+  { label: "Paramètres", href: "/parametres", route: "parametres", icon: Settings },
 ];
 
 function cx(...classes: Array<string | false | null | undefined>) {
@@ -51,29 +62,16 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-function ToothMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 42 42" fill="none" className={className} aria-hidden="true">
-      <path
-        d="M21 5.25c2.36-1.3 6.75-2.08 10.31 1.67 3.68 3.87 3.12 10.88.12 15.95-1.58 2.67-2.07 5.77-2.52 8.62-.53 3.35-1.03 6.51-3.5 6.51-1.86 0-2.48-2.47-3.04-4.68-.43-1.73-.83-3.32-1.37-3.32s-.94 1.59-1.37 3.32C19.07 35.53 18.45 38 16.59 38c-2.47 0-2.97-3.16-3.5-6.51-.45-2.85-.94-5.95-2.52-8.62-3-5.07-3.56-12.08.12-15.95C14.25 3.17 18.64 3.95 21 5.25Z"
-        fill="currentColor"
-      />
-      <path
-        d="M16.4 10.6c2.1-1.2 4.3.7 4.6.98.3-.28 2.5-2.18 4.6-.98"
-        stroke="white"
-        strokeLinecap="round"
-        strokeWidth="2.4"
-      />
-    </svg>
-  );
-}
-
 function Logo() {
   return (
     <div className="flex items-center gap-3">
-      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0F766E] to-[#2563EB] text-white shadow-xl shadow-teal-700/25 2xl:h-12 2xl:w-12">
-        <ToothMark className="h-6 w-6 2xl:h-7 2xl:w-7" />
-      </span>
+      <Image
+        src="/logo.png"
+        alt="DentaDZ Logo"
+        width={48}
+        height={48}
+        className="h-11 w-11 2xl:h-12 2xl:w-12"
+      />
       <div>
         <p className="text-lg font-bold text-[#0F172A] 2xl:text-xl">DentaDZ</p>
         <p className="text-xs font-medium text-[#64748B] 2xl:text-sm">Cabinet Dentaire</p>
