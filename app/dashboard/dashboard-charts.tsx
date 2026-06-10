@@ -33,7 +33,7 @@ const treatmentsData = [
 ];
 
 const cardClass =
-  "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(15,23,42,0.10)] sm:p-5";
+  "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_28px_70px_rgba(15,23,42,0.10)] 2xl:p-5";
 
 const subscribe = () => () => {};
 const getClientSnapshot = () => true;
@@ -51,9 +51,9 @@ export default function DashboardCharts() {
   );
 
   return (
-    <section className="grid gap-5 xl:grid-cols-2 2xl:gap-6" aria-label="Analyses">
+    <section className="grid gap-4 xl:grid-cols-2 2xl:gap-6" aria-label="Analyses">
       <article className={cardClass}>
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between 2xl:mb-5">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#0F766E] to-[#2563EB] text-white shadow-lg shadow-teal-700/20">
               <ChartBar className="h-5 w-5" aria-hidden="true" />
@@ -76,7 +76,7 @@ export default function DashboardCharts() {
           </button>
         </div>
 
-        <div className="h-64 min-w-0 2xl:h-72">
+        <div className="h-56 min-w-0 xl:h-60 2xl:h-72">
           {mounted ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={revenueData} margin={{ left: 0, right: 6 }}>
@@ -121,7 +121,7 @@ export default function DashboardCharts() {
       </article>
 
       <article className={cardClass}>
-        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between 2xl:mb-5">
           <div className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-[#2563EB] to-[#F59E0B] text-white shadow-lg shadow-blue-700/20">
               <ChartPie className="h-5 w-5" aria-hidden="true" />
@@ -145,7 +145,7 @@ export default function DashboardCharts() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_170px] md:items-center 2xl:grid-cols-[minmax(0,1fr)_190px]">
-          <div className="h-64 min-w-0 2xl:h-72">
+          <div className="h-56 min-w-0 xl:h-60 2xl:h-72">
             {mounted ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>

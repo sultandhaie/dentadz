@@ -1,23 +1,12 @@
 import type { ComponentType, SVGProps } from "react";
 import {
   ArrowRight,
-  Bell,
   Calendar,
-  ChevronDown,
   CircleAlert,
-  ClipboardList,
   ClipboardPlus,
-  CreditCard,
-  FileText,
-  LayoutDashboard,
-  Languages,
-  Menu,
   Plus,
   ReceiptText,
   RefreshCw,
-  Search,
-  Settings,
-  Stethoscope,
   UserPlus,
   Users,
   Wallet,
@@ -25,19 +14,6 @@ import {
 import DashboardCharts from "./dashboard-charts";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
-
-const navigationItems = [
-  { label: "Dashboard", icon: LayoutDashboard, active: true },
-  { label: "Patients", icon: Users },
-  { label: "Rendez-vous", icon: Calendar },
-  { label: "Salle d’attente", icon: Users },
-  { label: "Traitements", icon: Stethoscope },
-  { label: "Plan dentaire", icon: ClipboardList },
-  { label: "Paiements", icon: CreditCard },
-  { label: "Ordonnances", icon: FileText },
-  { label: "Rapports", icon: ReceiptText },
-  { label: "Paramètres", icon: Settings },
-];
 
 const quickActions = [
   { label: "Nouveau patient", icon: UserPlus, accent: "text-[#0F766E] bg-teal-50" },
@@ -235,7 +211,7 @@ const badgeStyles: Record<string, string> = {
 };
 
 const panelClass =
-  "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] transition duration-300 hover:shadow-[0_28px_70px_rgba(15,23,42,0.10)] sm:p-5";
+  "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] transition duration-300 hover:shadow-[0_28px_70px_rgba(15,23,42,0.10)] 2xl:p-5";
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -248,42 +224,6 @@ function initials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-}
-
-function ToothMark({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 42 42"
-      fill="none"
-      className={className}
-      aria-hidden="true"
-    >
-      <path
-        d="M21 5.25c2.36-1.3 6.75-2.08 10.31 1.67 3.68 3.87 3.12 10.88.12 15.95-1.58 2.67-2.07 5.77-2.52 8.62-.53 3.35-1.03 6.51-3.5 6.51-1.86 0-2.48-2.47-3.04-4.68-.43-1.73-.83-3.32-1.37-3.32s-.94 1.59-1.37 3.32C19.07 35.53 18.45 38 16.59 38c-2.47 0-2.97-3.16-3.5-6.51-.45-2.85-.94-5.95-2.52-8.62-3-5.07-3.56-12.08.12-15.95C14.25 3.17 18.64 3.95 21 5.25Z"
-        fill="currentColor"
-      />
-      <path
-        d="M16.4 10.6c2.1-1.2 4.3.7 4.6.98.3-.28 2.5-2.18 4.6-.98"
-        stroke="white"
-        strokeLinecap="round"
-        strokeWidth="2.4"
-      />
-    </svg>
-  );
-}
-
-function Logo() {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0F766E] to-[#2563EB] text-white shadow-xl shadow-teal-700/25">
-        <ToothMark className="h-7 w-7" />
-      </span>
-      <div>
-        <p className="text-xl font-bold text-[#0F172A]">DentaDZ</p>
-        <p className="text-sm font-medium text-[#64748B]">Cabinet Dentaire</p>
-      </div>
-    </div>
-  );
 }
 
 function Avatar({ name, className }: { name: string; className?: string }) {
@@ -313,142 +253,6 @@ function Badge({ label, tone }: { label: string; tone: string }) {
   );
 }
 
-function SidebarNav({ mobile = false }: { mobile?: boolean }) {
-  return (
-    <nav className={cx("space-y-1", mobile && "grid gap-1 sm:grid-cols-2")}>
-      {navigationItems.map((item) => (
-        <a
-          key={item.label}
-          href="#"
-          aria-current={item.active ? "page" : undefined}
-          className={cx(
-            "group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition duration-200 2xl:py-3",
-            item.active
-              ? "bg-gradient-to-r from-[#0F766E] to-[#2563EB] text-white shadow-lg shadow-teal-700/20"
-              : "text-[#0F172A] hover:bg-slate-100",
-          )}
-        >
-          <item.icon
-            className={cx(
-              "h-5 w-5 shrink-0",
-              item.active ? "text-white" : "text-[#64748B] group-hover:text-[#0F766E]",
-            )}
-            aria-hidden="true"
-          />
-          <span className="truncate">{item.label}</span>
-        </a>
-      ))}
-    </nav>
-  );
-}
-
-function DesktopSidebar() {
-  return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-[#E2E8F0] bg-white/95 px-4 py-4 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur xl:flex 2xl:w-72 2xl:py-5">
-      <Logo />
-      <div className="mt-6 flex-1 overflow-y-auto pr-1 2xl:mt-8">
-        <SidebarNav />
-      </div>
-      <button
-        type="button"
-        className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-3 text-left transition hover:border-[#0F766E]/30 hover:shadow-lg"
-      >
-        <Avatar name="Dr Benali" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-bold text-[#0F172A]">
-            Dr Benali
-          </span>
-          <span className="block truncate text-xs font-medium text-[#64748B]">
-            Administrateur
-          </span>
-        </span>
-        <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />
-      </button>
-    </aside>
-  );
-}
-
-function MobileTopNav() {
-  return (
-    <div className="sticky top-0 z-40 border-b border-[#E2E8F0] bg-white/95 px-4 py-3 shadow-sm backdrop-blur xl:hidden">
-      <details className="group">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 [&::-webkit-details-marker]:hidden">
-          <Logo />
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#0F172A]">
-            <Menu className="h-5 w-5" aria-hidden="true" />
-          </span>
-        </summary>
-        <div className="mt-4 rounded-2xl border border-[#E2E8F0] bg-white p-3 shadow-xl shadow-slate-900/10">
-          <SidebarNav mobile />
-        </div>
-      </details>
-    </div>
-  );
-}
-
-function SearchBox() {
-  return (
-    <label className="relative block w-full sm:w-80 xl:w-72 2xl:w-80">
-      <span className="sr-only">Rechercher</span>
-      <Search
-        className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748B]"
-        aria-hidden="true"
-      />
-      <input
-        type="search"
-        placeholder="Rechercher patient, rendez-vous..."
-        className="h-12 w-full rounded-xl border border-[#E2E8F0] bg-white pl-10 pr-4 text-sm font-medium text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#0F766E] focus:ring-4 focus:ring-teal-700/10"
-      />
-    </label>
-  );
-}
-
-function Header() {
-  return (
-    <header className="flex flex-col gap-4 rounded-2xl border border-[#E2E8F0] bg-white/80 p-4 shadow-[0_20px_45px_rgba(15,23,42,0.04)] backdrop-blur sm:p-5 xl:flex-row xl:items-center xl:justify-between">
-      <div>
-        <h1 className="text-2xl font-bold text-[#0F172A] sm:text-3xl xl:text-2xl 2xl:text-3xl">
-          Bonjour, Dr Benali 👋
-        </h1>
-        <p className="mt-1 text-sm font-medium text-[#64748B] sm:text-base">
-          Voici l’activité de votre cabinet aujourd’hui.
-        </p>
-      </div>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center xl:min-w-0 xl:justify-end">
-        <SearchBox />
-        <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-xl border border-[#E2E8F0] bg-white p-1">
-            <button
-              type="button"
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-[#0F766E] px-3 text-sm font-bold text-white"
-            >
-              FR
-            </button>
-            <button
-              type="button"
-              className="inline-flex h-9 items-center justify-center gap-1 rounded-lg px-3 text-sm font-bold text-[#64748B] transition hover:bg-slate-100"
-            >
-              <Languages className="h-4 w-4" aria-hidden="true" />
-              AR
-            </button>
-          </div>
-          <button
-            type="button"
-            className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#0F172A] transition hover:border-[#EF4444]/40 hover:bg-red-50"
-            aria-label="Notifications"
-          >
-            <Bell className="h-5 w-5" aria-hidden="true" />
-            <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-[#EF4444] px-1 text-xs font-bold text-white ring-2 ring-white">
-              3
-            </span>
-          </button>
-          <Avatar name="Dr Benali" className="h-11 w-11" />
-        </div>
-      </div>
-    </header>
-  );
-}
-
 function QuickActions() {
   return (
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Actions rapides">
@@ -456,11 +260,11 @@ function QuickActions() {
         <button
           type="button"
           key={action.label}
-          className="group flex min-h-16 items-center gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#0F766E]/30 hover:shadow-xl hover:shadow-slate-900/10"
+          className="group flex min-h-14 items-center gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-[#0F766E]/30 hover:shadow-xl hover:shadow-slate-900/10 2xl:min-h-16"
         >
           <span
             className={cx(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-105",
+              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-105 2xl:h-11 2xl:w-11",
               action.accent,
             )}
           >
@@ -494,33 +298,23 @@ function StatCard({
       <div className="flex items-start justify-between gap-3 2xl:gap-4">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-[#64748B]">{label}</p>
-          <p className="mt-3 text-2xl font-bold text-[#0F172A] 2xl:text-3xl">
+          <p className="mt-2 text-xl font-bold text-[#0F172A] 2xl:mt-3 2xl:text-3xl">
             {value}
           </p>
         </div>
         <span
           className={cx(
-            "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg transition group-hover:scale-105 2xl:h-12 2xl:w-12",
+            "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br text-white shadow-lg transition group-hover:scale-105 2xl:h-12 2xl:w-12",
             accent,
           )}
         >
           <Icon className="h-5 w-5 2xl:h-6 2xl:w-6" aria-hidden="true" />
         </span>
       </div>
-      <p className="mt-4 inline-flex rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-[#64748B]">
+      <p className="mt-3 inline-flex rounded-full bg-slate-50 px-3 py-1 text-xs font-bold text-[#64748B] 2xl:mt-4">
         {trend}
       </p>
     </article>
-  );
-}
-
-function StatsGrid() {
-  return (
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicateurs">
-      {stats.map((stat) => (
-        <StatCard key={stat.label} {...stat} />
-      ))}
-    </section>
   );
 }
 
@@ -548,7 +342,7 @@ function AppointmentPanel() {
         </button>
       </div>
 
-      <div className="relative mt-6 space-y-3 before:absolute before:bottom-8 before:left-[4.28rem] before:top-8 before:w-px before:bg-gradient-to-b before:from-blue-100 before:via-teal-100 before:to-transparent max-sm:before:hidden">
+      <div className="relative mt-4 space-y-3 before:absolute before:bottom-8 before:left-[4.28rem] before:top-8 before:w-px before:bg-gradient-to-b before:from-blue-100 before:via-teal-100 before:to-transparent max-sm:before:hidden 2xl:mt-6">
         {appointments.map((appointment) => (
           <div
             key={`${appointment.time}-${appointment.patient}`}
@@ -616,11 +410,11 @@ function WaitingRoomPanel() {
         </button>
       </div>
 
-      <div className="mt-6 space-y-3">
+      <div className="mt-4 space-y-3 2xl:mt-6">
         {waitingRoom.map((item) => (
           <div
             key={item.patient}
-            className="rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-4 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/10"
+            className="rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-3.5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/10 2xl:p-4"
           >
             <div className="flex flex-wrap items-start gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#0F172A] text-sm font-bold text-white">
@@ -688,104 +482,101 @@ function DataTable({
 
 export default function DashboardPage() {
   return (
-    <main className="min-h-screen bg-[#F8FAFC] font-sans text-[#0F172A]">
-      <DesktopSidebar />
-      <MobileTopNav />
+    <>
+      <QuickActions />
 
-      <div className="xl:pl-64 2xl:pl-72">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-5 px-4 py-5 sm:px-6 lg:py-6 xl:px-5 2xl:gap-6 2xl:px-8 2xl:py-8">
-          <Header />
-          <QuickActions />
-          <StatsGrid />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicateurs">
+        {stats.map((stat) => (
+          <StatCard key={stat.label} {...stat} />
+        ))}
+      </section>
 
-          <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,0.72fr)] 2xl:gap-6 2xl:grid-cols-[minmax(0,1.16fr)_minmax(380px,0.84fr)]">
-            <AppointmentPanel />
-            <WaitingRoomPanel />
-          </section>
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.7fr)] 2xl:gap-6 2xl:grid-cols-[minmax(0,1.16fr)_minmax(380px,0.84fr)]">
+        <AppointmentPanel />
+        <WaitingRoomPanel />
+      </section>
 
-          <DashboardCharts />
+      <DashboardCharts />
 
-          <section className="grid gap-5 2xl:grid-cols-2 2xl:gap-6" aria-label="Tables récentes">
-            <DataTable title="Patients récents" icon={Users}>
-              <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
-                <thead>
-                  <tr className="text-xs font-bold text-[#64748B]">
-                    <th className="border-b border-[#E2E8F0] pb-3 pr-4">Patient</th>
-                    <th className="border-b border-[#E2E8F0] pb-3 pr-4">Téléphone</th>
-                    <th className="border-b border-[#E2E8F0] pb-3 pr-4">
-                      Dernière visite
-                    </th>
-                    <th className="border-b border-[#E2E8F0] pb-3 pr-4">Prochain RDV</th>
-                    <th className="border-b border-[#E2E8F0] pb-3">Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentPatients.map((row) => (
-                    <tr key={row.patient} className="group">
-                      <td className="border-b border-slate-100 py-4 pr-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={row.patient} className="h-9 w-9 text-xs" />
-                          <span className="font-bold text-[#0F172A]">{row.patient}</span>
-                        </div>
-                      </td>
-                      <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
-                        {row.phone}
-                      </td>
-                      <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
-                        {row.lastVisit}
-                      </td>
-                      <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
-                        {row.nextVisit}
-                      </td>
-                      <td className="border-b border-slate-100 py-4">
-                        <Badge label={row.status} tone={row.tone} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </DataTable>
+      <section className="grid gap-4 2xl:grid-cols-2 2xl:gap-6" aria-label="Tables récentes">
+        <DataTable title="Patients récents" icon={Users}>
+          <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
+            <thead>
+              <tr className="text-xs font-bold text-[#64748B]">
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Patient</th>
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Téléphone</th>
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">
+                  Dernière visite
+                </th>
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Prochain RDV</th>
+                <th className="border-b border-[#E2E8F0] pb-3">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentPatients.map((row) => (
+                <tr key={row.patient} className="group">
+                  <td className="border-b border-slate-100 py-4 pr-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={row.patient} className="h-9 w-9 text-xs" />
+                      <span className="font-bold text-[#0F172A]">{row.patient}</span>
+                    </div>
+                  </td>
+                  <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
+                    {row.phone}
+                  </td>
+                  <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
+                    {row.lastVisit}
+                  </td>
+                  <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
+                    {row.nextVisit}
+                  </td>
+                  <td className="border-b border-slate-100 py-4">
+                    <Badge label={row.status} tone={row.tone} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </DataTable>
 
-            <DataTable title="Paiements récents" icon={ReceiptText}>
-              <table className="w-full min-w-[650px] border-separate border-spacing-0 text-left text-sm">
-                <thead>
-                  <tr className="text-xs font-bold text-[#64748B]">
-                    <th className="border-b border-[#E2E8F0] pb-3 pr-4">Patient</th>
-                    <th className="border-b border-[#E2E8F0] pb-3 pr-4">Traitement</th>
-                    <th className="border-b border-[#E2E8F0] pb-3 pr-4">Montant</th>
-                    <th className="border-b border-[#E2E8F0] pb-3 pr-4">Méthode</th>
-                    <th className="border-b border-[#E2E8F0] pb-3">Statut</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentPayments.map((row) => (
-                    <tr key={`${row.patient}-${row.treatment}`}>
-                      <td className="border-b border-slate-100 py-4 pr-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={row.patient} className="h-9 w-9 text-xs" />
-                          <span className="font-bold text-[#0F172A]">{row.patient}</span>
-                        </div>
-                      </td>
-                      <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
-                        {row.treatment}
-                      </td>
-                      <td className="border-b border-slate-100 py-4 pr-4 font-bold text-[#0F172A]">
-                        {row.amount}
-                      </td>
-                      <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
-                        {row.method}
-                      </td>
-                      <td className="border-b border-slate-100 py-4">
-                        <Badge label={row.status} tone={row.tone} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </DataTable>
-          </section>
-        </div>
-      </div>
-    </main>
+        <DataTable title="Paiements récents" icon={ReceiptText}>
+          <table className="w-full min-w-[650px] border-separate border-spacing-0 text-left text-sm">
+            <thead>
+              <tr className="text-xs font-bold text-[#64748B]">
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Patient</th>
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Traitement</th>
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Montant</th>
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Méthode</th>
+                <th className="border-b border-[#E2E8F0] pb-3">Statut</th>
+              </tr>
+            </thead>
+            <tbody>
+              {recentPayments.map((row) => (
+                <tr key={`${row.patient}-${row.treatment}`}>
+                  <td className="border-b border-slate-100 py-4 pr-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={row.patient} className="h-9 w-9 text-xs" />
+                      <span className="font-bold text-[#0F172A]">{row.patient}</span>
+                    </div>
+                  </td>
+                  <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
+                    {row.treatment}
+                  </td>
+                  <td className="border-b border-slate-100 py-4 pr-4 font-bold text-[#0F172A]">
+                    {row.amount}
+                  </td>
+                  <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
+                    {row.method}
+                  </td>
+                  <td className="border-b border-slate-100 py-4">
+                    <Badge label={row.status} tone={row.tone} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </DataTable>
+      </section>
+    </>
   );
 }
