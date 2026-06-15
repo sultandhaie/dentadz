@@ -1,6 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
+import Link from "next/link";
 import {
   AlertTriangle,
   Calendar,
@@ -283,13 +284,13 @@ function PageActions() {
   return (
     <section className="flex sm:justify-end">
       <div className="grid gap-2 sm:flex sm:justify-end">
-        <button
-          type="button"
+        <Link
+          href="/rendez-vous/nouveau"
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0F766E] to-[#2563EB] px-4 text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition hover:-translate-y-0.5 hover:shadow-xl"
         >
           <Plus className="h-4 w-4" aria-hidden="true" />
           Nouveau rendez-vous
-        </button>
+        </Link>
         <button
           type="button"
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-bold text-[#0F172A] transition hover:border-[#0F766E]/40 hover:bg-teal-50"

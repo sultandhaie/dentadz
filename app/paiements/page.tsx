@@ -2,6 +2,7 @@
 
 import type { ComponentType, SVGProps } from "react";
 import { useState } from "react";
+import Link from "next/link";
 import {
   AlertCircle,
   ArrowLeftRight,
@@ -334,13 +335,13 @@ function MethodBadge({ method }: { method: PaymentMethod }) {
 function PageActions() {
   return (
     <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
-      <button
-        type="button"
+      <Link
+        href="/paiements/nouveau"
         className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0F766E] to-[#2563EB] px-4 text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition hover:-translate-y-0.5 hover:shadow-xl"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
         Nouveau paiement
-      </button>
+      </Link>
       <button
         type="button"
         className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold text-[#0F172A] transition hover:border-[#0F766E]/40 hover:bg-teal-50"

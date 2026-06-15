@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import {
   Bar,
   BarChart,
@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { ChartBar, ChartPie, ChevronDown } from "lucide-react";
 
-const revenueData = [
+const revenueDataYear = [
   { month: "Jan", value: 280000 },
   { month: "Fév", value: 310000 },
   { month: "Mar", value: 390000 },
@@ -24,11 +24,26 @@ const revenueData = [
   { month: "Juin", value: 460000 },
 ];
 
-const treatmentsData = [
+const revenueDataMonth = [
+  { month: "Sem 1", value: 95000 },
+  { month: "Sem 2", value: 110000 },
+  { month: "Sem 3", value: 135000 },
+  { month: "Sem 4", value: 120000 },
+];
+
+const treatmentsDataMonth = [
   { name: "Détartrage", value: 35, color: "#0F766E" },
   { name: "Plombage", value: 25, color: "#2563EB" },
   { name: "Extraction", value: 18, color: "#F59E0B" },
   { name: "Orthodontie", value: 12, color: "#7C3AED" },
+  { name: "Blanchiment", value: 10, color: "#22C55E" },
+];
+
+const treatmentsDataWeek = [
+  { name: "Détartrage", value: 40, color: "#0F766E" },
+  { name: "Plombage", value: 20, color: "#2563EB" },
+  { name: "Extraction", value: 25, color: "#F59E0B" },
+  { name: "Orthodontie", value: 5, color: "#7C3AED" },
   { name: "Blanchiment", value: 10, color: "#22C55E" },
 ];
 
@@ -44,6 +59,12 @@ function formatCurrency(value: number) {
 }
 
 export default function DashboardCharts() {
+  const [revenuePeriod, setRevenuePeriod] = useState<"year" | "month">("year");
+  const [treatmentPeriod, setTreatmentPeriod] = useState<"month" | "week">("month");
+
+  const revenueData = revenuePeriod === "year" ? revenueDataYear : revenueDataMonth;
+  const treatmentsData = treatmentPeriod === "month" ? treatmentsDataMonth : treatmentsDataWeek;
+
   const mounted = useSyncExternalStore(
     subscribe,
     getClientSnapshot,
@@ -60,18 +81,19 @@ export default function DashboardCharts() {
             </span>
             <div>
               <h2 className="text-lg font-semibold text-[#0F172A]">
-                Revenus mensuels (DA)
+                Revenus de l’activité (DA)
               </h2>
               <p className="text-sm text-[#64748B]">
-                Encaissements et tendance par mois
+                {revenuePeriod === "year" ? "Encaissements mensuels de l’année" : "Encaissements hebdomadaires du mois"}
               </p>
             </div>
           </div>
           <button
             type="button"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#0F766E]/40 hover:bg-teal-50"
+            onClick={() => setRevenuePeriod((prev) => (prev === "year" ? "month" : "year"))}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#0F766E]/40 hover:bg-teal-50 cursor-pointer"
           >
-            Cette année
+            <span>{revenuePeriod === "year" ? "Cette année" : "Ce mois"}</span>
             <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />
           </button>
         </div>
@@ -131,15 +153,16 @@ export default function DashboardCharts() {
                 Traitements populaires
               </h2>
               <p className="text-sm text-[#64748B]">
-                Répartition des actes ce mois
+                {treatmentPeriod === "mois" ? "Répartition des actes ce mois" : "Répartition des actes cette semaine"}
               </p>
             </div>
           </div>
           <button
             type="button"
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#2563EB]/40 hover:bg-blue-50"
+            onClick={() => setTreatmentPeriod((prev) => (prev === "mois" ? "week" : "mois"))}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#2563EB]/40 hover:bg-blue-50 cursor-pointer"
           >
-            Ce mois
+            <span>{treatmentPeriod === "mois" ? "Ce mois" : "Cette semaine"}</span>
             <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />
           </button>
         </div>
