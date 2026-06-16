@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Calendar,
   CalendarDays,
@@ -21,6 +21,7 @@ import {
   User,
   UserRound,
 } from "lucide-react";
+import { api } from "../../lib/api";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -52,36 +53,36 @@ type PlanTreatment = {
   appointmentDate: string;
 };
 
-const stats = [
-  {
-    label: "Plans actifs",
-    value: "24",
-    detail: "Patients",
-    icon: ClipboardList,
-    accent: "from-[#0F766E] to-[#2DD4BF]",
-  },
-  {
-    label: "Plans terminés",
-    value: "18",
-    detail: "Ce mois",
-    icon: FileCheck2,
-    accent: "from-[#2563EB] to-[#60A5FA]",
-  },
-  {
-    label: "Valeur totale",
-    value: "1.250.000 DA",
-    detail: "Tous les plans actifs",
-    icon: CircleDollarSign,
-    accent: "from-[#F59E0B] to-[#FDBA74]",
-  },
-  {
-    label: "RDV liés",
-    value: "56",
-    detail: "À venir",
-    icon: CalendarDays,
-    accent: "from-[#7C3AED] to-[#A78BFA]",
-  },
-];
+type DentalPlan = {
+  id: number;
+  plan_code: string;
+  patient_id: number;
+  created_by: number;
+  status: string;
+  total_amount: number;
+  discount: number;
+  paid_amount: number;
+  balance: number;
+  created_date: string;
+  notes: string;
+  patient: { first_name: string; last_name: string; phone: string };
+  createdBy: { name: string };
+  treatments: Array<{
+    tooth_number: number;
+    treatment_name: string;
+    category: string;
+    dentist: string;
+    duration: string;
+    price: number;
+    status: string;
+    appointment_date: string;
+  }>;
+};
+
+type DentalPlansResponse = {
+  data: DentalPlan[];
+  meta: { current_page: number; last_page: number; per_page: number; total: number };
+};
 
 const upperTeeth: Tooth[] = [
   { number: 18, status: "Absent" },
@@ -120,72 +121,6 @@ const lowerTeeth: Tooth[] = [
 ];
 
 const teeth = [...upperTeeth, ...lowerTeeth];
-
-const treatments: PlanTreatment[] = [
-  {
-    id: "PLAN-T-001",
-    tooth: 16,
-    treatment: "Plombage",
-    category: "Conservateur",
-    dentist: "Dr Cherif",
-    duration: "45 min",
-    price: "4.000 DA",
-    status: "À venir",
-    appointmentDate: "15 Juin 2026",
-  },
-  {
-    id: "PLAN-T-002",
-    tooth: 14,
-    treatment: "Traitement canalaire",
-    category: "Endodontie",
-    dentist: "Dr Benali",
-    duration: "60 min",
-    price: "12.000 DA",
-    status: "En cours",
-    appointmentDate: "08 Juin 2026",
-  },
-  {
-    id: "PLAN-T-003",
-    tooth: 24,
-    treatment: "Couronne céramique",
-    category: "Prothèse",
-    dentist: "Dr Benali",
-    duration: "90 min",
-    price: "18.000 DA",
-    status: "À venir",
-    appointmentDate: "22 Juin 2026",
-  },
-  {
-    id: "PLAN-T-004",
-    tooth: 36,
-    treatment: "Détartrage",
-    category: "Préventif",
-    dentist: "Dr Cherif",
-    duration: "30 min",
-    price: "3.000 DA",
-    status: "Terminé",
-    appointmentDate: "28 Mai 2026",
-  },
-  {
-    id: "PLAN-T-005",
-    tooth: 46,
-    treatment: "Extraction",
-    category: "Chirurgical",
-    dentist: "Dr Cherif",
-    duration: "30 min",
-    price: "5.000 DA",
-    status: "À venir",
-    appointmentDate: "18 Juin 2026",
-  },
-];
-
-const financialSummary = [
-  { label: "Sous-total", value: "1.250.000 DA" },
-  { label: "Remise", value: "- 50.000 DA" },
-  { label: "Total planifié", value: "1.200.000 DA" },
-  { label: "Payé", value: "300.000 DA" },
-  { label: "Reste à payer", value: "900.000 DA" },
-];
 
 const panelClass =
   "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] 2xl:p-5";
@@ -330,7 +265,13 @@ function StatCard({
   );
 }
 
-function PatientPlanSelector() {
+function PatientPlanSelector({ plan }: { plan: DentalPlan | null }) {
+  const patientName = plan ? `${plan.patient.first_name} ${plan.patient.last_name}` : "";
+  const patientPhone = plan?.patient.phone ?? "";
+  const planCode = plan?.plan_code ?? "";
+  const statusLabel = plan?.status === "active" ? "Actif" : plan?.status === "completed" ? "Terminé" : plan?.status ?? "";
+  const statusColor = plan?.status === "active" ? "border-green-200 bg-green-50 text-green-700" : plan?.status === "completed" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-700";
+
   return (
     <article className={panelClass}>
       <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-[minmax(220px,1.2fr)_minmax(200px,1fr)_120px_minmax(240px,0.95fr)] 2xl:items-end">
@@ -340,10 +281,10 @@ function PatientPlanSelector() {
             type="button"
             className="flex min-h-16 w-full min-w-0 items-center gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3 text-left transition hover:border-[#0F766E]/40 hover:bg-teal-50"
           >
-            <Avatar name="Sara Khaldi" />
+            <Avatar name={patientName || "—"} />
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-bold text-[#0F172A]">Sara Khaldi</span>
-              <span className="block text-xs font-semibold text-[#64748B]">0661 10 20 30</span>
+              <span className="block truncate text-sm font-bold text-[#0F172A]">{patientName || "Aucun plan sélectionné"}</span>
+              <span className="block text-xs font-semibold text-[#64748B]">{patientPhone || "—"}</span>
             </span>
             <ChevronDown className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden="true" />
           </button>
@@ -354,17 +295,17 @@ function PatientPlanSelector() {
             type="button"
             className="flex min-h-16 w-full min-w-0 items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-white px-3 text-left text-sm font-bold text-[#0F172A] transition hover:border-[#0F766E]/40 hover:bg-teal-50"
           >
-            <span className="truncate">Plan #PLN-2026-045</span>
+            <span className="truncate">{planCode ? `Plan #${planCode}` : "Aucun plan"}</span>
             <ChevronDown className="h-4 w-4 shrink-0 text-[#64748B]" aria-hidden="true" />
           </button>
         </div>
-        <div className="min-h-16 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-center md:flex md:flex-col md:justify-center">
-          <p className="text-xs font-bold uppercase text-green-700">Statut</p>
-          <p className="text-sm font-bold text-green-700">Actif</p>
+        <div className={cx("min-h-16 rounded-xl border px-4 py-3 text-center md:flex md:flex-col md:justify-center", statusColor)}>
+          <p className="text-xs font-bold uppercase">Statut</p>
+          <p className="text-sm font-bold">{statusLabel}</p>
         </div>
         <div className="min-h-16 min-w-0 rounded-xl border border-[#E2E8F0] bg-slate-50/70 px-4 py-3 md:flex md:flex-col md:justify-center">
-          <p className="text-xs font-bold leading-5 text-[#64748B]">Date de création: <span className="text-[#0F172A]">12 Mai 2026</span></p>
-          <p className="mt-1 text-xs font-bold leading-5 text-[#64748B]">Dernière mise à jour: <span className="text-[#0F172A]">02 Juin 2026 par Dr Benali</span></p>
+          <p className="text-xs font-bold leading-5 text-[#64748B]">Date de création: <span className="text-[#0F172A]">{plan?.created_date ?? "—"}</span></p>
+          <p className="mt-1 text-xs font-bold leading-5 text-[#64748B]">Créé par: <span className="text-[#0F172A]">{plan?.createdBy?.name ?? "—"}</span></p>
         </div>
       </div>
     </article>
@@ -553,7 +494,13 @@ function PlanTreatmentStatusBadge({ status }: { status: PlanTreatmentStatus }) {
   return <StatusBadge className={getTreatmentStatusClasses(status)}>{status}</StatusBadge>;
 }
 
-function PlanTreatmentsTable({ onSelectTooth }: { onSelectTooth: (tooth: Tooth) => void }) {
+function PlanTreatmentsTable({
+  treatments,
+  onSelectTooth,
+}: {
+  treatments: PlanTreatment[];
+  onSelectTooth: (tooth: Tooth) => void;
+}) {
   const findTooth = (toothNumber: number) =>
     teeth.find((tooth) => tooth.number === toothNumber) ?? teeth[0];
 
@@ -604,7 +551,7 @@ function PlanTreatmentsTable({ onSelectTooth }: { onSelectTooth: (tooth: Tooth) 
                           key={index}
                           type="button"
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#64748B] transition hover:bg-slate-50 hover:text-[#0F766E]"
-                          aria-label={`${index === 0 ? "Voir" : index === 1 ? "Modifier" : "Plus d’actions"} ${treatment.treatment}`}
+                          aria-label={`${index === 0 ? "Voir" : index === 1 ? "Modifier" : "Plus d'actions"} ${treatment.treatment}`}
                         >
                           <Icon className="h-4 w-4" aria-hidden="true" />
                         </button>
@@ -656,22 +603,25 @@ function PlanTreatmentsTable({ onSelectTooth }: { onSelectTooth: (tooth: Tooth) 
   );
 }
 
-function PlanDetailsPanel() {
+function PlanDetailsPanel({ plan, financialSummary }: { plan: DentalPlan | null; financialSummary: Array<{ label: string; value: string }> }) {
+  const patientName = plan ? `${plan.patient.first_name} ${plan.patient.last_name}` : "—";
+  const statusLabel = plan?.status === "active" ? "Actif" : plan?.status === "completed" ? "Terminé" : plan?.status ?? "—";
+  const statusColor = plan?.status === "active" ? "border-green-200 bg-green-50 text-green-700" : plan?.status === "completed" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-slate-50 text-slate-700";
+
   return (
     <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] xl:sticky xl:top-5 xl:self-start 2xl:p-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <StatusBadge className="border-green-200 bg-green-50 text-green-700">Actif</StatusBadge>
-          <h2 className="mt-3 text-lg font-bold text-[#0F172A]">Plan #PLN-2026-045</h2>
+          <StatusBadge className={statusColor}>{statusLabel}</StatusBadge>
+          <h2 className="mt-3 text-lg font-bold text-[#0F172A]">Plan #{plan?.plan_code ?? "—"}</h2>
         </div>
       </div>
       <dl className="mt-5 space-y-3">
         {[
-          ["Patient", "Sara Khaldi", User],
-          ["Âge", "32 ans", UserRound],
-          ["Créé le", "12 Mai 2026", Calendar],
-          ["Dernière mise à jour", "02 Juin 2026", Clock],
-          ["Créé par", "Dr Benali", UserRound],
+          ["Patient", patientName, User],
+          ["Créé le", plan?.created_date ?? "—", Calendar],
+          ["Dernière mise à jour", plan?.created_date ?? "—", Clock],
+          ["Créé par", plan?.createdBy?.name ?? "—", UserRound],
         ].map(([label, value, Icon]) => {
           const DetailIcon = Icon as IconComponent;
           return (
@@ -701,7 +651,7 @@ function PlanDetailsPanel() {
       <section className="mt-5 rounded-2xl border border-[#E2E8F0] bg-white p-4">
         <h3 className="text-base font-bold text-[#0F172A]">Notes</h3>
         <p className="mt-2 text-sm font-medium leading-relaxed text-[#64748B]">
-          Traitement complet pour améliorer la santé bucco-dentaire et l’esthétique du sourire.
+          {plan?.notes || "Aucune note"}
         </p>
       </section>
       <div className="mt-5 grid gap-2">
@@ -718,10 +668,136 @@ function PlanDetailsPanel() {
   );
 }
 
+function LoadingSpinner() {
+  return (
+    <section className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0F766E]" />
+        <p className="text-sm font-semibold text-[#64748B]">Chargement des données...</p>
+      </div>
+    </section>
+  );
+}
+
 export default function PlanDentairePage() {
+  const [plans, setPlans] = useState<DentalPlan[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<DentalPlan | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [selectedTooth, setSelectedTooth] = useState<Tooth>(
     teeth.find((tooth) => tooth.number === 36) ?? teeth[0],
   );
+
+  useEffect(() => {
+    async function fetchPlans() {
+      try {
+        setLoading(true);
+        const res = await api<DentalPlansResponse>("/dental-plans");
+        const allPlans = res.data;
+        setPlans(allPlans);
+        if (allPlans.length > 0) {
+          setSelectedPlan(allPlans[0]);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erreur lors du chargement");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchPlans();
+  }, []);
+
+  const treatments: PlanTreatment[] = (selectedPlan?.treatments ?? []).map((t, idx) => ({
+    id: `${selectedPlan?.id ?? 0}-${idx}`,
+    tooth: t.tooth_number,
+    treatment: t.treatment_name,
+    category: t.category,
+    dentist: t.dentist,
+    duration: t.duration,
+    price: `${Number(t.price).toLocaleString("fr-DZ")} DA`,
+    status: t.status as PlanTreatmentStatus,
+    appointmentDate: t.appointment_date,
+  }));
+
+  const stats = (() => {
+    const total = plans.length;
+    const active = plans.filter((p) => p.status === "active").length;
+    const completed = plans.filter((p) => p.status === "completed").length;
+    const totalValue = plans.reduce((sum, p) => sum + Number(p.total_amount), 0);
+    return [
+      {
+        label: "Plans actifs",
+        value: String(active),
+        detail: "Patients",
+        icon: ClipboardList,
+        accent: "from-[#0F766E] to-[#2DD4BF]",
+      },
+      {
+        label: "Plans terminés",
+        value: String(completed),
+        detail: "Ce mois",
+        icon: FileCheck2,
+        accent: "from-[#2563EB] to-[#60A5FA]",
+      },
+      {
+        label: "Valeur totale",
+        value: `${totalValue.toLocaleString("fr-DZ")} DA`,
+        detail: "Tous les plans actifs",
+        icon: CircleDollarSign,
+        accent: "from-[#F59E0B] to-[#FDBA74]",
+      },
+      {
+        label: "Total plans",
+        value: String(total),
+        detail: "Plans enregistrés",
+        icon: CalendarDays,
+        accent: "from-[#7C3AED] to-[#A78BFA]",
+      },
+    ];
+  })();
+
+  const financialSummary = (() => {
+    if (!selectedPlan) {
+      return [
+        { label: "Sous-total", value: "0 DA" },
+        { label: "Remise", value: "0 DA" },
+        { label: "Total planifié", value: "0 DA" },
+        { label: "Payé", value: "0 DA" },
+        { label: "Reste à payer", value: "0 DA" },
+      ];
+    }
+    const total = Number(selectedPlan.total_amount);
+    const discount = Number(selectedPlan.discount);
+    const paid = Number(selectedPlan.paid_amount);
+    const balance = Number(selectedPlan.balance);
+    const planned = total - discount;
+    return [
+      { label: "Sous-total", value: `${total.toLocaleString("fr-DZ")} DA` },
+      { label: "Remise", value: `- ${discount.toLocaleString("fr-DZ")} DA` },
+      { label: "Total planifié", value: `${planned.toLocaleString("fr-DZ")} DA` },
+      { label: "Payé", value: `${paid.toLocaleString("fr-DZ")} DA` },
+      { label: "Reste à payer", value: `${balance.toLocaleString("fr-DZ")} DA` },
+    ];
+  })();
+
+  if (loading) return <LoadingSpinner />;
+
+  if (error) {
+    return (
+      <section className="flex min-h-[60vh] items-center justify-center">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center">
+          <p className="text-sm font-bold text-red-700">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-4 text-sm font-bold text-white transition hover:bg-[#115E59]"
+          >
+            Réessayer
+          </button>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-5">
@@ -732,16 +808,16 @@ export default function PlanDentairePage() {
       </section>
 
       <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px] 2xl:gap-5">
-        <PatientPlanSelector />
+        <PatientPlanSelector plan={selectedPlan} />
         <PlanActionsCard />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px] 2xl:gap-5">
         <section className="space-y-4 2xl:space-y-5">
           <DentalSchemaCard selectedTooth={selectedTooth} onSelectTooth={setSelectedTooth} />
-          <PlanTreatmentsTable onSelectTooth={setSelectedTooth} />
+          <PlanTreatmentsTable treatments={treatments} onSelectTooth={setSelectedTooth} />
         </section>
-        <PlanDetailsPanel />
+        <PlanDetailsPanel plan={selectedPlan} financialSummary={financialSummary} />
       </div>
     </section>
   );

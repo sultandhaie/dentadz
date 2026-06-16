@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BarChart3,
   ChevronDown,
@@ -18,6 +18,7 @@ import {
   Stethoscope,
   X,
 } from "lucide-react";
+import { api } from "../../lib/api";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -45,36 +46,37 @@ type Treatment = {
   status: TreatmentStatus;
 };
 
-const stats = [
-  {
-    title: "Total traitements",
-    value: "48",
-    label: "Actifs",
-    icon: Stethoscope,
-    accent: "from-[#0F766E] to-[#2DD4BF]",
-  },
-  {
-    title: "Utilisés ce mois",
-    value: "156",
-    label: "+12% vs mois dernier",
-    icon: ClipboardList,
-    accent: "from-[#2563EB] to-[#60A5FA]",
-  },
-  {
-    title: "Chiffre d’affaires",
-    value: "420.000 DA",
-    label: "Ce mois",
-    icon: CircleDollarSign,
-    accent: "from-[#F59E0B] to-[#FDBA74]",
-  },
-  {
-    title: "Traitements populaires",
-    value: "Détartrage",
-    label: "35% des traitements",
-    icon: BarChart3,
-    accent: "from-[#7C3AED] to-[#A78BFA]",
-  },
-];
+interface TreatmentStats {
+  total_treatments: number;
+  active_treatments: number;
+  used_this_month: number;
+  used_change_percent: number;
+  revenue: number;
+  popular_treatment_name: string;
+  popular_treatment_percent: number;
+}
+
+interface ApiTreatment {
+  id: string | number;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  duration: string;
+  price: number | string;
+  cost_price: number | string;
+  status: string;
+}
+
+interface PaginatedResponse {
+  data: ApiTreatment[];
+  meta: {
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+  };
+}
 
 const categories = [
   "Tous",
@@ -87,97 +89,6 @@ const categories = [
   "Autre",
 ];
 
-const treatments: Treatment[] = [
-  {
-    id: "TRT-001",
-    code: "TRT-001",
-    name: "Détartrage",
-    description: "Nettoyage complet des dents",
-    category: "Préventif",
-    duration: "30 min",
-    price: "3.000 DA",
-    costPrice: "800 DA",
-    status: "Actif",
-  },
-  {
-    id: "TRT-002",
-    code: "TRT-002",
-    name: "Consultation",
-    description: "Examen et diagnostic",
-    category: "Diagnostic",
-    duration: "20 min",
-    price: "1.500 DA",
-    costPrice: "300 DA",
-    status: "Actif",
-  },
-  {
-    id: "TRT-003",
-    code: "TRT-003",
-    name: "Plombage",
-    description: "Obturation dentaire",
-    category: "Conservateur",
-    duration: "45 min",
-    price: "4.000 DA",
-    costPrice: "1.200 DA",
-    status: "Actif",
-  },
-  {
-    id: "TRT-004",
-    code: "TRT-004",
-    name: "Extraction",
-    description: "Extraction dentaire simple",
-    category: "Chirurgical",
-    duration: "30 min",
-    price: "5.000 DA",
-    costPrice: "1.500 DA",
-    status: "Actif",
-  },
-  {
-    id: "TRT-005",
-    code: "TRT-005",
-    name: "Orthodontie",
-    description: "Traitement orthodontique",
-    category: "Orthodontie",
-    duration: "60 min",
-    price: "25.000 DA",
-    costPrice: "8.000 DA",
-    status: "Actif",
-  },
-  {
-    id: "TRT-006",
-    code: "TRT-006",
-    name: "Blanchiment",
-    description: "Blanchiment dentaire",
-    category: "Esthétique",
-    duration: "60 min",
-    price: "8.000 DA",
-    costPrice: "2.200 DA",
-    status: "Actif",
-  },
-  {
-    id: "TRT-007",
-    code: "TRT-007",
-    name: "Couronne",
-    description: "Couronne céramique",
-    category: "Prothèse",
-    duration: "90 min",
-    price: "18.000 DA",
-    costPrice: "7.000 DA",
-    status: "Actif",
-  },
-  {
-    id: "TRT-008",
-    code: "TRT-008",
-    name: "Implant dentaire",
-    description: "Pose d’implant",
-    category: "Chirurgical",
-    duration: "120 min",
-    price: "60.000 DA",
-    costPrice: "32.000 DA",
-    status: "Inactif",
-  },
-];
-
 const selectedTreatmentInfo = {
   fullDescription:
     "Nettoyage complet des dents pour éliminer le tartre, la plaque et prévenir les caries et maladies des gencives.",
@@ -186,6 +97,26 @@ const selectedTreatmentInfo = {
   activeSince: "10 Janv. 2024",
   updatedAt: "02 Juin 2026 par Dr Benali",
 };
+
+function formatPrice(value: number | string): string {
+  const num = typeof value === "string" ? parseFloat(value) : value;
+  if (isNaN(num)) return String(value);
+  return num.toLocaleString("fr-FR") + " DA";
+}
+
+function mapApiTreatment(item: ApiTreatment): Treatment {
+  return {
+    id: String(item.id),
+    code: item.code,
+    name: item.name,
+    description: item.description,
+    category: item.category as TreatmentCategory,
+    duration: item.duration,
+    price: formatPrice(item.price),
+    costPrice: formatPrice(item.cost_price),
+    status: item.status === "Actif" || item.status === "active" ? "Actif" : "Inactif",
+  };
+}
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -346,11 +277,19 @@ function CategoryChips() {
 }
 
 function FiltersCard({
+  treatments,
   selectedTreatment,
   onSelectTreatment,
+  meta,
+  currentPage,
+  onPageChange,
 }: {
+  treatments: Treatment[];
   selectedTreatment: Treatment;
   onSelectTreatment: (treatment: Treatment) => void;
+  meta: { current_page: number; last_page: number; per_page: number; total: number } | null;
+  currentPage: number;
+  onPageChange: (page: number) => void;
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -382,14 +321,16 @@ function FiltersCard({
       </div>
 
       <TreatmentsTable
+        treatments={treatments}
         selectedTreatment={selectedTreatment}
         onSelectTreatment={onSelectTreatment}
       />
       <TreatmentMobileCards
+        treatments={treatments}
         selectedTreatment={selectedTreatment}
         onSelectTreatment={onSelectTreatment}
       />
-      <Pagination />
+      <Pagination meta={meta} currentPage={currentPage} onPageChange={onPageChange} />
     </article>
   );
 }
@@ -413,9 +354,11 @@ function ActionIconButton({
 }
 
 function TreatmentsTable({
+  treatments,
   selectedTreatment,
   onSelectTreatment,
 }: {
+  treatments: Treatment[];
   selectedTreatment: Treatment;
   onSelectTreatment: (treatment: Treatment) => void;
 }) {
@@ -475,7 +418,7 @@ function TreatmentsTable({
                   <div className="flex items-center gap-1">
                     <ActionIconButton label={`Voir ${treatment.name}`} icon={Eye} />
                     <ActionIconButton label={`Modifier ${treatment.name}`} icon={Pencil} />
-                    <ActionIconButton label={`Plus d’actions pour ${treatment.name}`} icon={MoreVertical} />
+                    <ActionIconButton label={`Plus d'actions pour ${treatment.name}`} icon={MoreVertical} />
                   </div>
                 </td>
               </tr>
@@ -488,9 +431,11 @@ function TreatmentsTable({
 }
 
 function TreatmentMobileCards({
+  treatments,
   selectedTreatment,
   onSelectTreatment,
 }: {
+  treatments: Treatment[];
   selectedTreatment: Treatment;
   onSelectTreatment: (treatment: Treatment) => void;
 }) {
@@ -547,7 +492,7 @@ function TreatmentMobileCards({
                 <Pencil className="h-4 w-4" aria-hidden="true" />
                 Modifier
               </button>
-              <ActionIconButton label={`Plus d’actions pour ${treatment.name}`} icon={MoreVertical} />
+              <ActionIconButton label={`Plus d'actions pour ${treatment.name}`} icon={MoreVertical} />
             </div>
           </article>
         );
@@ -556,29 +501,62 @@ function TreatmentMobileCards({
   );
 }
 
-function Pagination() {
+function Pagination({
+  meta,
+  currentPage,
+  onPageChange,
+}: {
+  meta: { current_page: number; last_page: number; per_page: number; total: number } | null;
+  currentPage: number;
+  onPageChange: (page: number) => void;
+}) {
+  const lastPage = meta?.last_page ?? 1;
+  const total = meta?.total ?? 0;
+  const perPage = meta?.per_page ?? 8;
+  const start = (currentPage - 1) * perPage + 1;
+  const end = Math.min(currentPage * perPage, total);
+
+  const pageNumbers: (number | "...")[] = [];
+  if (lastPage <= 5) {
+    for (let i = 1; i <= lastPage; i++) pageNumbers.push(i);
+  } else {
+    pageNumbers.push(1);
+    if (currentPage > 3) pageNumbers.push("...");
+    const rangeStart = Math.max(2, currentPage - 1);
+    const rangeEnd = Math.min(lastPage - 1, currentPage + 1);
+    for (let i = rangeStart; i <= rangeEnd; i++) pageNumbers.push(i);
+    if (currentPage < lastPage - 2) pageNumbers.push("...");
+    pageNumbers.push(lastPage);
+  }
+
   return (
     <footer className="grid gap-3 border-t border-[#E2E8F0] p-4 2xl:grid-cols-[1fr_auto_auto] 2xl:items-center 2xl:justify-between">
       <p className="text-sm font-semibold text-[#64748B] 2xl:whitespace-nowrap">
-        Affichage 1 - 8 sur 48 traitements
+        Affichage {total > 0 ? start : 0} - {end} sur {total} traitements
       </p>
       <div className="flex max-w-full flex-wrap items-center gap-1.5 sm:gap-2">
         <button
           type="button"
-          className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#64748B] transition hover:bg-slate-50 sm:px-3"
+          disabled={currentPage <= 1}
+          onClick={() => onPageChange(currentPage - 1)}
+          className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#64748B] transition hover:bg-slate-50 sm:px-3 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           <span className="hidden sm:inline">Previous</span>
         </button>
-        {["1", "2", "3", "...", "6"].map((page) => (
+        {pageNumbers.map((page, idx) => (
           <button
-            key={page}
+            key={`${page}-${idx}`}
             type="button"
+            disabled={page === "..."}
+            onClick={() => typeof page === "number" && onPageChange(page)}
             className={cx(
               "h-9 min-w-9 rounded-lg px-2.5 text-sm font-bold transition sm:px-3",
-              page === "1"
+              page === currentPage
                 ? "bg-[#0F766E] text-white shadow-md shadow-teal-700/20"
-                : "border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50",
+                : page === "..."
+                  ? "pointer-events-none text-[#64748B]"
+                  : "border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50",
             )}
           >
             {page}
@@ -586,7 +564,9 @@ function Pagination() {
         ))}
         <button
           type="button"
-          className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50 sm:px-3"
+          disabled={currentPage >= lastPage}
+          onClick={() => onPageChange(currentPage + 1)}
+          className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50 sm:px-3 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="hidden sm:inline">Next</span>
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -596,7 +576,7 @@ function Pagination() {
         type="button"
         className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50"
       >
-        8 par page
+        {perPage} par page
         <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />
       </button>
     </footer>
@@ -629,7 +609,7 @@ function InfoItem({
 
 function TreatmentDetailsPanel({ treatment }: { treatment: Treatment }) {
   const details =
-    treatment.id === "TRT-001"
+    treatment.id === "TRT-001" || treatment.code === "TRT-001"
       ? selectedTreatmentInfo
       : {
           fullDescription: treatment.description,
@@ -710,8 +690,106 @@ function TreatmentDetailsPanel({ treatment }: { treatment: Treatment }) {
   );
 }
 
+function LoadingSpinner() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-[#0F766E]" />
+    </div>
+  );
+}
+
 export default function TraitementsPage() {
-  const [selectedTreatment, setSelectedTreatment] = useState<Treatment>(treatments[0]);
+  const [treatments, setTreatments] = useState<Treatment[]>([]);
+  const [selectedTreatment, setSelectedTreatment] = useState<Treatment | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [meta, setMeta] = useState<{ current_page: number; last_page: number; per_page: number; total: number } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [statsData, setStatsData] = useState<TreatmentStats | null>(null);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const data = await api<TreatmentStats>("/treatments/stats");
+        setStatsData(data);
+      } catch {
+        setStatsData(null);
+      }
+    }
+    fetchStats();
+  }, []);
+
+  useEffect(() => {
+    async function fetchTreatments() {
+      setLoading(true);
+      try {
+        const data = await api<PaginatedResponse>("/treatments");
+        const mapped = data.data.map(mapApiTreatment);
+        setTreatments(mapped);
+        setMeta(data.meta);
+        if (!selectedTreatment && mapped.length > 0) {
+          setSelectedTreatment(mapped[0]);
+        }
+      } catch {
+        setTreatments([]);
+        setMeta(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchTreatments();
+  }, []);
+
+  const handlePageChange = async (page: number) => {
+    setCurrentPage(page);
+    setLoading(true);
+    try {
+      const data = await api<PaginatedResponse>("/treatments");
+      const mapped = data.data.map(mapApiTreatment);
+      setTreatments(mapped);
+      setMeta(data.meta);
+      if (mapped.length > 0) {
+        setSelectedTreatment(mapped[0]);
+      }
+    } catch {
+      setTreatments([]);
+      setMeta(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const stats = [
+    {
+      title: "Total traitements",
+      value: statsData ? String(statsData.total_treatments) : "---",
+      label: "Actifs",
+      icon: Stethoscope,
+      accent: "from-[#0F766E] to-[#2DD4BF]",
+    },
+    {
+      title: "Utilisés ce mois",
+      value: statsData ? String(statsData.used_this_month) : "---",
+      label: statsData ? `+${statsData.used_change_percent}% vs mois dernier` : "---",
+      icon: ClipboardList,
+      accent: "from-[#2563EB] to-[#60A5FA]",
+    },
+    {
+      title: "Chiffre d'affaires",
+      value: statsData
+        ? statsData.revenue.toLocaleString("fr-FR") + " DA"
+        : "---",
+      label: "Ce mois",
+      icon: CircleDollarSign,
+      accent: "from-[#F59E0B] to-[#FDBA74]",
+    },
+    {
+      title: "Traitements populaires",
+      value: statsData?.popular_treatment_name ?? "---",
+      label: statsData ? `${statsData.popular_treatment_percent}% des traitements` : "---",
+      icon: BarChart3,
+      accent: "from-[#7C3AED] to-[#A78BFA]",
+    },
+  ];
 
   return (
     <section className="space-y-5">
@@ -723,12 +801,50 @@ export default function TraitementsPage() {
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px] 2xl:gap-5">
         <section className="min-w-0 space-y-4 2xl:space-y-5">
-          <FiltersCard
-            selectedTreatment={selectedTreatment}
-            onSelectTreatment={setSelectedTreatment}
-          />
+          {loading ? (
+            <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-[#E2E8F0] p-4 2xl:p-5">
+                <div className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-[minmax(260px,1fr)_190px_170px_auto]">
+                  <label className="relative block sm:col-span-2 2xl:col-span-1">
+                    <span className="sr-only">Rechercher un traitement</span>
+                    <Search
+                      className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-[#64748B]"
+                      aria-hidden="true"
+                    />
+                    <input
+                      type="search"
+                      placeholder="Rechercher un traitement..."
+                      className="h-11 w-full rounded-xl border border-[#E2E8F0] bg-white pl-10 pr-4 text-sm font-medium text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#0F766E] focus:ring-4 focus:ring-teal-700/10"
+                    />
+                  </label>
+                  <FilterButton label="Catégorie" value="Toutes les catégories" />
+                  <FilterButton label="Statut" value="Tous les statuts" />
+                  <button
+                    type="button"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0F766E] to-[#2563EB] px-4 text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Nouveau traitement
+                  </button>
+                </div>
+                <CategoryChips />
+              </div>
+              <LoadingSpinner />
+            </article>
+          ) : (
+            <FiltersCard
+              treatments={treatments}
+              selectedTreatment={selectedTreatment ?? treatments[0]}
+              onSelectTreatment={setSelectedTreatment}
+              meta={meta}
+              currentPage={currentPage}
+              onPageChange={handlePageChange}
+            />
+          )}
         </section>
-        <TreatmentDetailsPanel treatment={selectedTreatment} />
+        {selectedTreatment && (
+          <TreatmentDetailsPanel treatment={selectedTreatment} />
+        )}
       </div>
     </section>
   );

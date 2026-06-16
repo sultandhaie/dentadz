@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
@@ -15,14 +15,7 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
-
-const mockPatients = [
-  { id: "#P-000125", name: "Ahmed Benali", phone: "0555 22 33 44", age: 34 },
-  { id: "#P-000126", name: "Sara Khaldi", phone: "0661 10 20 30", age: 29 },
-  { id: "#P-000127", name: "Mohamed Amrani", phone: "0770 55 44 66", age: 42 },
-  { id: "#P-000128", name: "Lina Cherif", phone: "0550 33 44 55", age: 26 },
-  { id: "#P-000129", name: "Yacine Saadi", phone: "0777 44 55 66", age: 31 },
-];
+import { api } from "../../../lib/api";
 
 const mockMedicines = [
   "Amoxicilline 500mg (Capsule)",
@@ -46,8 +39,24 @@ interface MedicationRow {
   quantity: string;
 }
 
+interface Patient {
+  id: number;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  age?: number;
+}
+
+interface PatientsResponse {
+  data: Patient[];
+}
+
 export default function NouvelleOrdonnancePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loadingPatients, setLoadingPatients] = useState(true);
+
   const [formData, setFormData] = useState({
     patientId: "",
     patientSearch: "",
@@ -72,17 +81,46 @@ export default function NouvelleOrdonnancePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPatientResults, setShowPatientResults] = useState(false);
+  const [serverError, setServerError] = useState("");
 
-  const filteredPatients = mockPatients.filter((p) =>
-    p.name.toLowerCase().includes(formData.patientSearch.toLowerCase()) ||
-    p.phone.includes(formData.patientSearch)
-  );
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setLoadingPatients(true);
+        const res = await api<PatientsResponse>("/patients?per_page=100");
+        setPatients(res.data);
+      } catch (err) {
+        setServerError(err instanceof Error ? err.message : "Erreur lors du chargement des patients");
+      } finally {
+        setLoadingPatients(false);
+      }
+    };
+    fetchPatients();
+  }, []);
 
-  const handlePatientSelect = (p: typeof mockPatients[0]) => {
+  useEffect(() => {
+    const pId = searchParams.get("patientId");
+    const pName = searchParams.get("patientName");
+    if (pId || pName) {
+      setFormData(prev => ({
+        ...prev,
+        patientId: pId || prev.patientId,
+        patientSearch: pName ? decodeURIComponent(pName) : prev.patientSearch,
+      }));
+    }
+  }, [searchParams]);
+
+  const filteredPatients = patients.filter((p) => {
+    const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+    return fullName.includes(formData.patientSearch.toLowerCase()) ||
+      p.phone.includes(formData.patientSearch);
+  });
+
+  const handlePatientSelect = (p: Patient) => {
     setFormData((prev) => ({
       ...prev,
-      patientId: p.id,
-      patientSearch: p.name,
+      patientId: String(p.id),
+      patientSearch: `${p.first_name} ${p.last_name}`,
     }));
     setShowPatientResults(false);
     if (errors.patientId) {
@@ -140,7 +178,7 @@ export default function NouvelleOrdonnancePage() {
     return newErrors;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
@@ -149,10 +187,31 @@ export default function NouvelleOrdonnancePage() {
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setServerError("");
+
+    try {
+      const medicationsText = medications
+        .map((m) => `${m.name} - ${m.type} - ${m.dosage} - ${m.duration} - ${m.quantity}`)
+        .join("\n");
+
+      await api("/prescriptions", {
+        method: "POST",
+        body: JSON.stringify({
+          patient_id: Number(formData.patientId),
+          dentist_id: 1,
+          medications: medicationsText,
+          instructions: formData.instructionsGenerales,
+          prescribed_date: formData.date,
+          status: "Active",
+        }),
+      });
+
       setShowSuccess(true);
-    }, 1200);
+    } catch (err) {
+      setServerError(err instanceof Error ? err.message : "Une erreur est survenue lors de l'enregistrement");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -175,10 +234,11 @@ export default function NouvelleOrdonnancePage() {
       },
     ]);
     setErrors({});
+    setServerError("");
     setShowSuccess(false);
   };
 
-  const selectedPatient = mockPatients.find((p) => p.id === formData.patientId);
+  const selectedPatient = patients.find((p) => p.id === Number(formData.patientId));
 
   return (
     <div className="space-y-6">
@@ -214,7 +274,7 @@ export default function NouvelleOrdonnancePage() {
           </div>
           <h3 className="mt-4 text-lg font-bold text-[#0F172A]">Ordonnance enregistrée avec succès !</h3>
           <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B]">
-            L'ordonnance pour <strong>{selectedPatient?.name}</strong> a été enregistrée. Elle contient <strong>{medications.length} médicament(s)</strong> et est prête pour l'impression ou l'envoi.
+            L&apos;ordonnance pour <strong>{selectedPatient?.first_name} {selectedPatient?.last_name}</strong> a été enregistrée. Elle contient <strong>{medications.length} médicament(s)</strong> et est prête pour l&apos;impression ou l&apos;envoi.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <button
@@ -248,8 +308,14 @@ export default function NouvelleOrdonnancePage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-50 text-[#7C3AED]">
                   <Pill className="h-4.5 w-4.5" />
                 </span>
-                <h3 className="text-base font-bold text-[#0F172A]">Informations de l'Ordonnance</h3>
+                <h3 className="text-base font-bold text-[#0F172A]">Informations de l&apos;Ordonnance</h3>
               </div>
+
+              {serverError && (
+                <div className="mb-4 rounded-xl bg-red-50 p-3 text-xs font-bold text-red-500">
+                  {serverError}
+                </div>
+              )}
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="relative">
@@ -277,24 +343,30 @@ export default function NouvelleOrdonnancePage() {
                           ? "border-red-300 focus:border-red-500"
                           : "border-[#E2E8F0] focus:border-[#7C3AED] focus:ring-4 focus:ring-purple-700/10"
                       }`}
-                      placeholder="Rechercher par nom..."
+                      placeholder={loadingPatients ? "Chargement des patients..." : "Rechercher par nom..."}
                       autoComplete="off"
                     />
                   </div>
 
                   {showPatientResults && (
                     <div className="absolute z-20 mt-1 max-h-60 w-full overflow-y-auto rounded-xl border border-[#E2E8F0] bg-white py-1 shadow-xl">
-                      {filteredPatients.map((p) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => handlePatientSelect(p)}
-                          className="flex w-full flex-col px-4 py-2 text-left hover:bg-slate-50 transition"
-                        >
-                          <span className="text-sm font-bold text-[#0F172A]">{p.name}</span>
-                          <span className="text-xs text-[#64748B]">{p.phone} · ID {p.id}</span>
-                        </button>
-                      ))}
+                      {loadingPatients ? (
+                        <div className="px-4 py-3 text-sm text-[#64748B]">Chargement...</div>
+                      ) : filteredPatients.length > 0 ? (
+                        filteredPatients.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => handlePatientSelect(p)}
+                            className="flex w-full flex-col px-4 py-2 text-left hover:bg-slate-50 transition"
+                          >
+                            <span className="text-sm font-bold text-[#0F172A]">{p.first_name} {p.last_name}</span>
+                            <span className="text-xs text-[#64748B]">{p.phone} · ID #{p.id}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-3 text-sm text-[#64748B]">Aucun patient trouvé</div>
+                      )}
                     </div>
                   )}
                   {errors.patientId && <p className="mt-1 text-xs font-bold text-red-500">{errors.patientId}</p>}
@@ -302,7 +374,7 @@ export default function NouvelleOrdonnancePage() {
 
                 <div>
                   <label htmlFor="date" className="block text-xs font-bold uppercase tracking-wide text-[#64748B] mb-1.5">
-                    Date d'émission <span className="text-red-500">*</span>
+                    Date d&apos;émission <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
@@ -505,7 +577,7 @@ export default function NouvelleOrdonnancePage() {
                     <Printer className="h-4 w-4" />
                   </div>
                   <p className="text-[11px] font-bold text-[#64748B]">Signature électronique</p>
-                  <p className="text-[10px] text-[#94A3B8]">Appliquée automatiquement à l'impression</p>
+                  <p className="text-[10px] text-[#94A3B8]">Appliquée automatiquement à l&apos;impression</p>
                 </div>
               </div>
             </div>

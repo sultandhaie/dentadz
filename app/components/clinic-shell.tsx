@@ -1,6 +1,10 @@
+"use client";
+
 import type { ComponentType, ReactNode, SVGProps } from "react";
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   Calendar,
@@ -9,6 +13,7 @@ import {
   CreditCard,
   FileText,
   LayoutDashboard,
+  LogOut,
   Menu,
   ReceiptText,
   Search,
@@ -133,28 +138,36 @@ function SidebarNav({
   );
 }
 
-function Sidebar({ activeRoute }: { activeRoute: ShellRoute }) {
+function Sidebar({ activeRoute, userName, userRole, onLogout }: { activeRoute: ShellRoute; userName: string; userRole: string; onLogout: () => void }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-[#E2E8F0] bg-white/95 px-3.5 py-4 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur lg:flex 2xl:w-72 2xl:px-4 2xl:py-5">
       <Logo />
       <div className="mt-5 flex-1 overflow-y-auto pr-1 2xl:mt-8">
         <SidebarNav activeRoute={activeRoute} />
       </div>
-      <button
-        type="button"
-        className="mt-4 flex w-full items-center gap-2.5 rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-2.5 text-left transition hover:border-[#0F766E]/30 hover:shadow-lg 2xl:gap-3 2xl:p-3"
-      >
-        <Avatar name="Dr Benali" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-bold text-[#0F172A]">
-            Dr Benali
+      <div className="mt-4 space-y-2">
+        <div className="flex items-center gap-2.5 rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-2.5 2xl:gap-3 2xl:p-3">
+          <Avatar name={userName} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-bold text-[#0F172A]">
+              {userName}
+            </span>
+            <span className="block truncate text-xs font-medium text-[#64748B]">
+              {userRole}
+            </span>
           </span>
-          <span className="block truncate text-xs font-medium text-[#64748B]">
-            Administrateur
+        </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          className="flex w-full items-center gap-2.5 rounded-2xl border border-red-200 bg-red-50 p-2.5 text-left text-sm font-bold text-[#EF4444] transition cursor-pointer hover:bg-red-100 hover:shadow-md 2xl:gap-3 2xl:p-3"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-100">
+            <LogOut className="h-4 w-4" />
           </span>
-        </span>
-        <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />
-      </button>
+          Déconnexion
+        </button>
+      </div>
     </aside>
   );
 }
@@ -250,6 +263,13 @@ function Header({
   );
 }
 
+const roleLabels: Record<string, string> = {
+  admin: "Administrateur",
+  dentist: "Dentiste",
+  receptionist: "Réceptionniste",
+  assistant: "Assistant(e)",
+};
+
 export default function ClinicShell({
   activeRoute,
   title,
@@ -265,9 +285,34 @@ export default function ClinicShell({
   children: ReactNode;
   maxWidth?: string;
 }) {
+  const [userName, setUserName] = useState("Utilisateur");
+  const [userRole, setUserRole] = useState("");
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("auth_user");
+      if (raw) {
+        const user = JSON.parse(raw);
+        setUserName(user.name || "Utilisateur");
+        setUserRole(roleLabels[user.role] || user.role || "");
+      }
+    } catch {
+      // fallback defaults
+    }
+  }, []);
+
+  const greetingTitle = title || `Bonjour, ${userName} 👋`;
+  const router = useRouter();
+
+  const handleLogout = () => {
+    localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
+    router.push("/login");
+  };
+
   return (
     <main className="min-h-screen bg-[#F8FAFC] font-sans text-[#0F172A]">
-      <Sidebar activeRoute={activeRoute} />
+      <Sidebar activeRoute={activeRoute} userName={userName} userRole={userRole} onLogout={handleLogout} />
       <MobileTopNav activeRoute={activeRoute} />
 
       <div className="lg:pl-60 2xl:pl-72">
@@ -278,7 +323,7 @@ export default function ClinicShell({
           )}
         >
           <Header
-            title={title}
+            title={greetingTitle}
             subtitle={subtitle}
             searchPlaceholder={searchPlaceholder}
           />

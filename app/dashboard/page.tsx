@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -9,6 +9,7 @@ import {
   Calendar,
   CircleAlert,
   ClipboardPlus,
+  Loader2,
   Plus,
   ReceiptText,
   RefreshCw,
@@ -17,9 +18,78 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { api } from "../../lib/api";
 import DashboardCharts from "./dashboard-charts";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
+
+interface DashboardStats {
+  today_appointments: number;
+  today_confirmed: number;
+  today_en_attente: number;
+  today_en_consultation: number;
+  today_termine: number;
+  month_revenue: number;
+  month_payments_remaining: number;
+  total_patients: number;
+  new_patients_this_month: number;
+  patients_en_traitement: number;
+  active_plans: number;
+  completed_plans: number;
+}
+
+interface Appointment {
+  id: number;
+  patient: { first_name: string; last_name: string };
+  dentist: { name: string };
+  start_time: string;
+  treatment: string;
+  status: string;
+  color: string;
+  room: string;
+}
+
+interface WaitingRoomEntry {
+  id: number;
+  queue_number: number;
+  patient: { first_name: string; last_name: string; patient_code: string };
+  appointment_time: string;
+  appointment_label: string;
+  treatment: string;
+  waiting_time: string;
+  status: string;
+  estimated_price: number;
+}
+
+interface PatientRow {
+  id: number;
+  first_name: string;
+  last_name: string;
+  phone: string;
+  status: string;
+  appointments?: { appointment_date: string }[];
+}
+
+interface PaymentRow {
+  id: number;
+  patient: { first_name: string; last_name: string };
+  amount: number;
+  method: string;
+  status: string;
+  payment_date: string;
+  notes?: string;
+}
+
+interface RevenueChart {
+  label: string;
+  value: number;
+}
+
+interface TreatmentBreakdown {
+  name: string;
+  count: number;
+  color: string;
+}
 
 const quickActions = [
   { label: "Nouveau patient", icon: UserPlus, accent: "text-[#0F766E] bg-teal-50", href: "/patients/nouveau" },
@@ -38,153 +108,13 @@ const quickActions = [
   { label: "Nouveau paiement", icon: Wallet, accent: "text-[#F59E0B] bg-amber-50", href: "/paiements/nouveau" },
 ];
 
-const stats = [
-  {
-    label: "Rendez-vous aujourd’hui",
-    value: "18",
-    trend: "+4 par rapport à hier",
-    icon: Calendar,
-    accent: "from-[#2563EB] to-[#60A5FA]",
-  },
-  {
-    label: "Nouveaux patients",
-    value: "7",
-    trend: "Cette semaine",
-    icon: UserPlus,
-    accent: "from-[#22C55E] to-[#86EFAC]",
-  },
-  {
-    label: "Revenus du mois",
-    value: "420.000 DA",
-    trend: "+12% ce mois",
-    icon: Wallet,
-    accent: "from-[#0F766E] to-[#2DD4BF]",
-  },
-  {
-    label: "Paiements restants",
-    value: "75.000 DA",
-    trend: "12 patients",
-    icon: CircleAlert,
-    accent: "from-[#F59E0B] to-[#FDBA74]",
-  },
-];
-
-const appointments = [
-  {
-    time: "09:00",
-    patient: "Ahmed Benali",
-    treatment: "Détartrage",
-    status: "Confirmé",
-    tone: "blue",
-  },
-  {
-    time: "09:30",
-    patient: "Sara Khaldi",
-    treatment: "Consultation",
-    status: "En attente",
-    tone: "orange",
-  },
-  {
-    time: "10:00",
-    patient: "Mohamed Amrani",
-    treatment: "Extraction",
-    status: "En consultation",
-    tone: "purple",
-  },
-  {
-    time: "11:00",
-    patient: "Lina Cherif",
-    treatment: "Orthodontie",
-    status: "Confirmé",
-    tone: "blue",
-  },
-  {
-    time: "12:00",
-    patient: "Yacine Saadi",
-    treatment: "Plombage",
-    status: "Terminé",
-    tone: "green",
-  },
-];
-
-// Removed static waitingRoom constant to be replaced by state inside WaitingRoomPanel
-
-const recentPatients = [
-  {
-    patient: "Ahmed Benali",
-    phone: "0555 22 33 44",
-    lastVisit: "08 Juin 2026",
-    nextVisit: "12 Juin 2026",
-    status: "Actif",
-    tone: "green",
-  },
-  {
-    patient: "Sara Khaldi",
-    phone: "0661 10 20 30",
-    lastVisit: "07 Juin 2026",
-    nextVisit: "10 Juin 2026",
-    status: "En traitement",
-    tone: "blue",
-  },
-  {
-    patient: "Yacine Saadi",
-    phone: "0777 44 55 66",
-    lastVisit: "06 Juin 2026",
-    nextVisit: "—",
-    status: "Nouveau",
-    tone: "purple",
-  },
-  {
-    patient: "Lina Cherif",
-    phone: "0550 33 44 55",
-    lastVisit: "05 Juin 2026",
-    nextVisit: "11 Juin 2026",
-    status: "Actif",
-    tone: "green",
-  },
-];
-
-const recentPayments = [
-  {
-    patient: "Lina Cherif",
-    treatment: "Orthodontie",
-    amount: "25.000 DA",
-    method: "Cash",
-    status: "Payé",
-    tone: "green",
-  },
-  {
-    patient: "Mohamed Amrani",
-    treatment: "Extraction",
-    amount: "8.000 DA",
-    method: "BaridiMob",
-    status: "Payé",
-    tone: "green",
-  },
-  {
-    patient: "Yacine Saadi",
-    treatment: "Couronne",
-    amount: "15.000 DA",
-    method: "Cash",
-    status: "Reste 5.000 DA",
-    tone: "orange",
-  },
-  {
-    patient: "Sara Khaldi",
-    treatment: "Plombage",
-    amount: "6.000 DA",
-    method: "CCP",
-    status: "Payé",
-    tone: "green",
-  },
-];
-
 const badgeStyles: Record<string, string> = {
   blue: "bg-blue-50 text-[#2563EB] ring-blue-100",
   green: "bg-emerald-50 text-[#22C55E] ring-emerald-100",
   orange: "bg-amber-50 text-[#F59E0B] ring-amber-100",
   purple: "bg-violet-50 text-[#7C3AED] ring-violet-100",
   teal: "bg-teal-50 text-[#0F766E] ring-teal-100",
+  red: "bg-red-50 text-[#EF4444] ring-red-100",
 };
 
 const panelClass =
@@ -228,6 +158,30 @@ function Badge({ label, tone }: { label: string; tone: string }) {
       {label}
     </span>
   );
+}
+
+function formatDA(value: number) {
+  return value.toLocaleString("fr-DZ") + " DA";
+}
+
+function statusTone(status: string): string {
+  const map: Record<string, string> = {
+    "Confirmé": "blue",
+    "En attente": "orange",
+    "En consultation": "purple",
+    "Terminé": "green",
+    "Annulé": "red",
+    "Absent": "red",
+    "Prochain": "teal",
+    "Actif": "green",
+    "En traitement": "blue",
+    "Nouveau": "purple",
+    "En retard": "orange",
+    "Payé": "green",
+    "Partiel": "orange",
+    "Reste": "orange",
+  };
+  return map[status] || "teal";
 }
 
 function QuickActions() {
@@ -295,7 +249,7 @@ function StatCard({
   );
 }
 
-function AppointmentPanel() {
+function AppointmentPanel({ appointments, loading }: { appointments: Appointment[]; loading: boolean }) {
   const [activeFilter, setActiveFilter] = useState<string>("Tous");
 
   const filteredAppointments = appointments.filter((app) => {
@@ -312,10 +266,10 @@ function AppointmentPanel() {
           </span>
           <div>
             <h2 className="text-lg font-semibold text-[#0F172A]">
-              Planning d’aujourd’hui
+              Planning d&apos;aujourd&apos;hui
             </h2>
             <p className="text-sm text-[#64748B]">
-              {filteredAppointments.length} rendez-vous à suivre
+              {loading ? "Chargement..." : `${filteredAppointments.length} rendez-vous à suivre`}
             </p>
           </div>
         </div>
@@ -350,35 +304,42 @@ function AppointmentPanel() {
       </div>
 
       <div className="relative mt-4 space-y-3 before:absolute before:bottom-8 before:left-[4.28rem] before:top-8 before:w-px before:bg-gradient-to-b before:from-blue-100 before:via-teal-100 before:to-transparent max-sm:before:hidden 2xl:mt-6">
-        {filteredAppointments.length > 0 ? (
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-[#0F766E]" />
+          </div>
+        ) : filteredAppointments.length > 0 ? (
           filteredAppointments.map((appointment) => (
             <div
-              key={`${appointment.time}-${appointment.patient}`}
+              key={appointment.id}
               className="relative flex flex-wrap items-center gap-3 rounded-2xl border border-transparent bg-slate-50/80 p-3 transition hover:border-[#E2E8F0] hover:bg-white hover:shadow-md"
             >
               <time className="w-12 shrink-0 text-sm font-bold text-[#0F172A]">
-                {appointment.time}
+                {appointment.start_time?.slice(0, 5)}
               </time>
               <span
                 className={cx(
                   "z-10 h-3 w-3 shrink-0 rounded-full ring-4 ring-white",
-                  appointment.tone === "blue" && "bg-[#2563EB]",
-                  appointment.tone === "orange" && "bg-[#F59E0B]",
-                  appointment.tone === "purple" && "bg-[#7C3AED]",
-                  appointment.tone === "green" && "bg-[#22C55E]",
+                  statusTone(appointment.status) === "blue" && "bg-[#2563EB]",
+                  statusTone(appointment.status) === "orange" && "bg-[#F59E0B]",
+                  statusTone(appointment.status) === "purple" && "bg-[#7C3AED]",
+                  statusTone(appointment.status) === "green" && "bg-[#22C55E]",
                 )}
                 aria-hidden="true"
               />
-              <Avatar name={appointment.patient} className="h-9 w-9 text-xs" />
+              <Avatar
+                name={`${appointment.patient?.first_name} ${appointment.patient?.last_name}`}
+                className="h-9 w-9 text-xs"
+              />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold text-[#0F172A]">
-                  {appointment.patient}
+                  {appointment.patient?.first_name} {appointment.patient?.last_name}
                 </p>
                 <p className="truncate text-sm font-medium text-[#64748B]">
                   {appointment.treatment}
                 </p>
               </div>
-              <Badge label={appointment.status} tone={appointment.tone} />
+              <Badge label={appointment.status} tone={statusTone(appointment.status)} />
             </div>
           ))
         ) : (
@@ -399,112 +360,39 @@ function AppointmentPanel() {
   );
 }
 
-function WaitingRoomPanel() {
+function WaitingRoomPanel({ entries, loading, onRefresh }: { entries: WaitingRoomEntry[]; loading: boolean; onRefresh: () => void }) {
   const router = useRouter();
-  const [roomList, setRoomList] = useState([
-    {
-      number: 1,
-      patientId: "P-000126",
-      patient: "Sara Khaldi",
-      time: "09:30",
-      treatment: "Consultation",
-      status: "En attente",
-      tone: "orange",
-      timer: "00:15",
-      action: "Appeler",
-      price: 2000,
-    },
-    {
-      number: 2,
-      patientId: "P-000127",
-      patient: "Mohamed Amrani",
-      time: "10:00",
-      treatment: "Extraction",
-      status: "Prochain",
-      tone: "teal",
-      timer: "00:00",
-      action: "Commencer",
-      price: 8000,
-    },
-    {
-      number: 3,
-      patientId: "P-000128",
-      patient: "Lina Cherif",
-      time: "11:00",
-      treatment: "Orthodontie",
-      status: "En attente",
-      tone: "orange",
-      timer: "00:00",
-      action: "Appeler",
-      price: 80000,
-    },
-  ]);
+  const [acting, setActing] = useState<number | null>(null);
 
-  const handleAction = (item: typeof roomList[0]) => {
-    if (item.action === "Appeler") {
-      setRoomList((prev) =>
-        prev.map((p) =>
-          p.patientId === item.patientId
-            ? { ...p, status: "Prochain", tone: "teal", action: "Commencer" }
-            : p
-        )
-      );
-    } else if (item.action === "Commencer") {
-      setRoomList((prev) =>
-        prev.map((p) =>
-          p.patientId === item.patientId
-            ? { ...p, status: "En consultation", tone: "purple", action: "Terminer" }
-            : p
-        )
-      );
-    } else if (item.action === "Terminer") {
-      router.push(
-        `/paiements/nouveau?patientId=${item.patientId}&patientName=${encodeURIComponent(
-          item.patient
-        )}&treatment=${encodeURIComponent(item.treatment)}&price=${item.price}`
-      );
-    }
+  const getStatusInfo = (status: string) => {
+    const map: Record<string, { tone: string; action: string; color: string }> = {
+      "En attente": { tone: "orange", action: "Appeler", color: "bg-[#0F766E] shadow-teal-700/20 hover:bg-[#115E59]" },
+      "Prochain": { tone: "teal", action: "Commencer", color: "bg-[#2563EB] shadow-blue-700/20 hover:bg-blue-700" },
+      "En consultation": { tone: "purple", action: "Terminer", color: "bg-[#7C3AED] shadow-violet-700/20 hover:bg-[#6D28D9]" },
+    };
+    return map[status] ?? { tone: "orange", action: "Appeler", color: "bg-[#0F766E] shadow-teal-700/20 hover:bg-[#115E59]" };
   };
 
-  const handleResetList = () => {
-    setRoomList([
-      {
-        number: 1,
-        patientId: "P-000126",
-        patient: "Sara Khaldi",
-        time: "09:30",
-        treatment: "Consultation",
-        status: "En attente",
-        tone: "orange",
-        timer: "00:15",
-        action: "Appeler",
-        price: 2000,
-      },
-      {
-        number: 2,
-        patientId: "P-000127",
-        patient: "Mohamed Amrani",
-        time: "10:00",
-        treatment: "Extraction",
-        status: "Prochain",
-        tone: "teal",
-        timer: "00:00",
-        action: "Commencer",
-        price: 8000,
-      },
-      {
-        number: 3,
-        patientId: "P-000128",
-        patient: "Lina Cherif",
-        time: "11:00",
-        treatment: "Orthodontie",
-        status: "En attente",
-        tone: "orange",
-        timer: "00:00",
-        action: "Appeler",
-        price: 80000,
-      },
-    ]);
+  const handleAction = async (item: WaitingRoomEntry) => {
+    const info = getStatusInfo(item.status);
+    setActing(item.id);
+    try {
+      const token = localStorage.getItem("auth_token") || "";
+      if (info.action === "Appeler") {
+        await api(`/waiting-room/${item.id}`, { method: "PUT", token, body: JSON.stringify({ status: "Prochain" }) });
+      } else if (info.action === "Commencer") {
+        await api(`/waiting-room/${item.id}/start`, { method: "POST", token });
+        router.push(`/patients/${item.patient.patient_code}?consultation=active`);
+        return;
+      } else if (info.action === "Terminer") {
+        await api(`/waiting-room/${item.id}/complete`, { method: "POST", token });
+      }
+      onRefresh();
+    } catch {
+      // silently fail
+    } finally {
+      setActing(null);
+    }
   };
 
   return (
@@ -516,14 +404,14 @@ function WaitingRoomPanel() {
           </span>
           <div>
             <h2 className="text-lg font-semibold text-[#0F172A]">
-              Salle d’attente
+              Salle d&apos;attente
             </h2>
             <p className="text-sm text-[#64748B]">Patients présents au cabinet</p>
           </div>
         </div>
         <button
           type="button"
-          onClick={handleResetList}
+          onClick={onRefresh}
           className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-4 text-sm font-bold text-[#0F172A] transition hover:border-[#0F766E]/40 hover:bg-teal-50"
         >
           <RefreshCw className="h-4 w-4 text-[#0F766E]" aria-hidden="true" />
@@ -532,56 +420,77 @@ function WaitingRoomPanel() {
       </div>
 
       <div className="mt-4 space-y-3 2xl:mt-6">
-        {roomList.map((item) => (
-          <div
-            key={item.patient}
-            className="rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-3.5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/10 2xl:p-4"
-          >
-            <div className="flex flex-wrap items-start gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#0F172A] text-sm font-bold text-white">
-                {item.number}
-              </span>
-              <Avatar name={item.patient} className="h-10 w-10 text-xs" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold text-[#0F172A]">
-                  {item.patient}
-                </p>
-                <p className="mt-1 text-sm font-medium text-[#64748B]">
-                  {item.time} · {item.treatment}
-                </p>
-              </div>
-              <Badge label={item.status} tone={item.tone} />
-            </div>
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-bold text-[#64748B]">Temps d’attente</p>
-                <p className="text-lg font-bold text-[#0F172A]">{item.timer}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => handleAction(item)}
-                className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white shadow-lg transition duration-200 cursor-pointer ${
-                  item.action === "Appeler"
-                    ? "bg-[#0F766E] shadow-teal-700/20 hover:bg-[#115E59]"
-                    : item.action === "Commencer"
-                      ? "bg-[#2563EB] shadow-blue-700/20 hover:bg-blue-700"
-                      : "bg-[#7C3AED] shadow-violet-700/20 hover:bg-[#6D28D9]"
-                }`}
-              >
-                {item.action === "Terminer" ? "Terminer (Payer)" : item.action}
-              </button>
-            </div>
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-[#0F766E]" />
           </div>
-        ))}
+        ) : entries.length > 0 ? (
+          entries.map((item) => {
+            const info = getStatusInfo(item.status);
+            const patientName = `${item.patient?.first_name} ${item.patient?.last_name}`;
+            return (
+              <div
+                key={item.id}
+                className="rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-3.5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/10 2xl:p-4"
+              >
+                <div className="flex flex-wrap items-start gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#0F172A] text-sm font-bold text-white">
+                    {item.queue_number}
+                  </span>
+                  <Avatar name={patientName} className={cx("h-10 w-10 text-xs", item.status === "En consultation" && "ring-2 ring-purple-400")} />
+                  <div className="min-w-0 flex-1">
+                    {item.status === "En consultation" ? (
+                      <button type="button" onClick={() => router.push(`/patients/${item.patient.patient_code}?consultation=active`)} className="truncate text-sm font-bold text-[#7C3AED] hover:underline cursor-pointer text-left">
+                        {patientName}
+                      </button>
+                    ) : (
+                      <p className="truncate text-sm font-bold text-[#0F172A]">
+                        {patientName}
+                      </p>
+                    )}
+                    <p className="mt-1 text-sm font-medium text-[#64748B]">
+                      {item.appointment_time} · {item.treatment}
+                    </p>
+                  </div>
+                  <Badge label={item.status} tone={info.tone} />
+                </div>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-bold text-[#64748B]">Temps d&apos;attente</p>
+                    <p className="text-lg font-bold text-[#0F172A]">{item.waiting_time || "00:00"}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleAction(item)}
+                    disabled={acting === item.id}
+                    className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white shadow-lg transition duration-200 cursor-pointer disabled:opacity-50 ${info.color}`}
+                  >
+                    {acting === item.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : info.action === "Terminer" ? (
+                      "Terminer (Payer)"
+                    ) : (
+                      info.action
+                    )}
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        ) : (
+          <div className="py-6 text-center text-sm font-semibold text-[#64748B]">
+            Aucun patient en attente.
+          </div>
+        )}
       </div>
 
-      <a
-        href="#"
+      <Link
+        href="/salle-attente"
         className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-[#0F766E] transition hover:text-[#115E59]"
       >
         Voir tous les patients en attente
         <ArrowRight className="h-4 w-4" aria-hidden="true" />
-      </a>
+      </Link>
     </article>
   );
 }
@@ -610,14 +519,84 @@ function DataTable({
 
 export default function DashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
+  const [waitingRoom, setWaitingRoom] = useState<WaitingRoomEntry[]>([]);
+  const [recentPatients, setRecentPatients] = useState<PatientRow[]>([]);
+  const [recentPayments, setRecentPayments] = useState<PaymentRow[]>([]);
+  const [revenueChart, setRevenueChart] = useState<RevenueChart[]>([]);
+  const [treatmentBreakdown, setTreatmentBreakdown] = useState<TreatmentBreakdown[]>([]);
+
+  const fetchData = async () => {
+    const token = localStorage.getItem("auth_token") || "";
+    try {
+      const [dashData, todayData, waitingData, patientsData, paymentsData] = await Promise.all([
+        api<{ stats: DashboardStats; revenue_chart: RevenueChart[]; treatment_breakdown: TreatmentBreakdown[] }>("/dashboard", { token }),
+        api<Appointment[]>("/appointments/today", { token }),
+        api<{ data: WaitingRoomEntry[] }>("/waiting-room", { token }),
+        api<{ data: PatientRow[] }>("/patients?per_page=5", { token }),
+        api<{ data: PaymentRow[] }>("/payments?per_page=5&status=Payé", { token }),
+      ]);
+
+      setStats(dashData.stats);
+      setRevenueChart(dashData.revenue_chart);
+      setTreatmentBreakdown(dashData.treatment_breakdown);
+      setTodayAppointments(todayData);
+      setWaitingRoom(waitingData.data);
+      setRecentPatients(patientsData.data);
+      setRecentPayments(paymentsData.data);
+    } catch {
+      // error handled silently
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const statCards = stats
+    ? [
+        {
+          label: "Rendez-vous aujourd'hui",
+          value: String(stats.today_appointments),
+          trend: `${stats.today_en_attente} en attente · ${stats.today_en_consultation} en cours`,
+          icon: Calendar,
+          accent: "from-[#2563EB] to-[#60A5FA]",
+        },
+        {
+          label: "Nouveaux patients",
+          value: String(stats.new_patients_this_month),
+          trend: `${stats.total_patients} total`,
+          icon: UserPlus,
+          accent: "from-[#22C55E] to-[#86EFAC]",
+        },
+        {
+          label: "Revenus du mois",
+          value: formatDA(stats.month_revenue),
+          trend: `${stats.active_plans} plans actifs`,
+          icon: Wallet,
+          accent: "from-[#0F766E] to-[#2DD4BF]",
+        },
+        {
+          label: "Paiements restants",
+          value: formatDA(stats.month_payments_remaining),
+          trend: `${stats.patients_en_traitement} patients en traitement`,
+          icon: CircleAlert,
+          accent: "from-[#F59E0B] to-[#FDBA74]",
+        },
+      ]
+    : [];
 
   const filteredPatients = recentPatients.filter((p) =>
-    p.patient.toLowerCase().includes(searchQuery.toLowerCase())
+    `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const filteredPayments = recentPayments.filter((p) =>
-    p.patient.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    p.treatment.toLowerCase().includes(searchQuery.toLowerCase())
+    `${p.patient?.first_name} ${p.patient?.last_name}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.notes || "").toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -625,19 +604,24 @@ export default function DashboardPage() {
       <QuickActions />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicateurs">
-        {stats.map((stat) => (
-          <StatCard key={stat.label} {...stat} />
-        ))}
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-[#E2E8F0] bg-white p-4 animate-pulse h-32" />
+          ))
+        ) : (
+          statCards.map((stat) => (
+            <StatCard key={stat.label} {...stat} />
+          ))
+        )}
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.7fr)] 2xl:gap-6 2xl:grid-cols-[minmax(0,1.16fr)_minmax(380px,0.84fr)]">
-        <AppointmentPanel />
-        <WaitingRoomPanel />
+        <AppointmentPanel appointments={todayAppointments} loading={loading} />
+        <WaitingRoomPanel entries={waitingRoom} loading={loading} onRefresh={fetchData} />
       </section>
 
-      <DashboardCharts />
+      <DashboardCharts revenueChart={revenueChart} treatmentBreakdown={treatmentBreakdown} />
 
-      {/* Local search bar for tables */}
       <article className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.04)]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
@@ -667,40 +651,36 @@ export default function DashboardPage() {
               <tr className="text-xs font-bold text-[#64748B]">
                 <th className="border-b border-[#E2E8F0] pb-3 pr-4">Patient</th>
                 <th className="border-b border-[#E2E8F0] pb-3 pr-4">Téléphone</th>
-                <th className="border-b border-[#E2E8F0] pb-3 pr-4">
-                  Dernière visite
-                </th>
-                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Prochain RDV</th>
-                <th className="border-b border-[#E2E8F0] pb-3">Statut</th>
+                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Statut</th>
               </tr>
             </thead>
             <tbody>
-              {filteredPatients.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={3} className="py-6 text-center">
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-[#0F766E]" />
+                  </td>
+                </tr>
+              ) : filteredPatients.length > 0 ? (
                 filteredPatients.map((row) => (
-                  <tr key={row.patient} className="group">
+                  <tr key={row.id} className="group">
                     <td className="border-b border-slate-100 py-4 pr-4">
                       <div className="flex items-center gap-3">
-                        <Avatar name={row.patient} className="h-9 w-9 text-xs" />
-                        <span className="font-bold text-[#0F172A]">{row.patient}</span>
+                        <Avatar name={`${row.first_name} ${row.last_name}`} className="h-9 w-9 text-xs" />
+                        <span className="font-bold text-[#0F172A]">{row.first_name} {row.last_name}</span>
                       </div>
                     </td>
                     <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
                       {row.phone}
                     </td>
-                    <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
-                      {row.lastVisit}
-                    </td>
-                    <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
-                      {row.nextVisit}
-                    </td>
                     <td className="border-b border-slate-100 py-4">
-                      <Badge label={row.status} tone={row.tone} />
+                      <Badge label={row.status} tone={statusTone(row.status)} />
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-sm font-semibold text-[#64748B]">
+                  <td colSpan={3} className="py-6 text-center text-sm font-semibold text-[#64748B]">
                     Aucun patient trouvé.
                   </td>
                 </tr>
@@ -714,39 +694,41 @@ export default function DashboardPage() {
             <thead>
               <tr className="text-xs font-bold text-[#64748B]">
                 <th className="border-b border-[#E2E8F0] pb-3 pr-4">Patient</th>
-                <th className="border-b border-[#E2E8F0] pb-3 pr-4">Traitement</th>
                 <th className="border-b border-[#E2E8F0] pb-3 pr-4">Montant</th>
                 <th className="border-b border-[#E2E8F0] pb-3 pr-4">Méthode</th>
                 <th className="border-b border-[#E2E8F0] pb-3">Statut</th>
               </tr>
             </thead>
             <tbody>
-              {filteredPayments.length > 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={4} className="py-6 text-center">
+                    <Loader2 className="mx-auto h-5 w-5 animate-spin text-[#0F766E]" />
+                  </td>
+                </tr>
+              ) : filteredPayments.length > 0 ? (
                 filteredPayments.map((row) => (
-                  <tr key={`${row.patient}-${row.treatment}`}>
+                  <tr key={row.id} className="group">
                     <td className="border-b border-slate-100 py-4 pr-4">
                       <div className="flex items-center gap-3">
-                        <Avatar name={row.patient} className="h-9 w-9 text-xs" />
-                        <span className="font-bold text-[#0F172A]">{row.patient}</span>
+                        <Avatar name={`${row.patient?.first_name} ${row.patient?.last_name}`} className="h-9 w-9 text-xs" />
+                        <span className="font-bold text-[#0F172A]">{row.patient?.first_name} {row.patient?.last_name}</span>
                       </div>
                     </td>
-                    <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
-                      {row.treatment}
-                    </td>
                     <td className="border-b border-slate-100 py-4 pr-4 font-bold text-[#0F172A]">
-                      {row.amount}
+                      {formatDA(row.amount)}
                     </td>
                     <td className="border-b border-slate-100 py-4 pr-4 font-medium text-[#64748B]">
                       {row.method}
                     </td>
                     <td className="border-b border-slate-100 py-4">
-                      <Badge label={row.status} tone={row.tone} />
+                      <Badge label={row.status} tone={statusTone(row.status)} />
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-sm font-semibold text-[#64748B]">
+                  <td colSpan={4} className="py-6 text-center text-sm font-semibold text-[#64748B]">
                     Aucun paiement trouvé.
                   </td>
                 </tr>

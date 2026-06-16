@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "../../lib/api";
 import {
   Check,
   Clock3,
@@ -47,33 +48,13 @@ function ToothLogo({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   return (
     <span
       className={cx(
-        "inline-flex shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#0F766E] to-[#2563EB] text-white shadow-lg shadow-teal-700/20",
+        "inline-flex shrink-0 items-center justify-center rounded-2xl overflow-hidden",
         size === "sm" && "h-11 w-11",
         size === "md" && "h-12 w-12 xl:h-14 xl:w-14",
         size === "lg" && "h-16 w-16",
       )}
     >
-      <svg
-        viewBox="0 0 42 42"
-        className={cx(size === "sm" ? "h-6 w-6" : "h-7 w-7 xl:h-8 xl:w-8")}
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M21 5.5c2.25-1.15 6.45-1.85 9.75 1.65 3.45 3.65 2.9 10.25.1 15.05-1.45 2.5-1.92 5.35-2.35 8-.5 3.15-.95 6.05-3.25 6.05-1.75 0-2.35-2.3-2.85-4.35-.4-1.6-.75-3.05-1.4-3.05s-1 1.45-1.4 3.05c-.5 2.05-1.1 4.35-2.85 4.35-2.3 0-2.75-2.9-3.25-6.05-.43-2.65-.9-5.5-2.35-8-2.8-4.8-3.35-11.4.1-15.05C14.55 3.65 18.75 4.35 21 5.5Z"
-          stroke="currentColor"
-          strokeWidth="2.6"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d="M14.5 11.4c1.6-1.55 3.8-1.75 5.35-.85"
-          stroke="white"
-          strokeOpacity="0.75"
-          strokeWidth="2"
-          strokeLinecap="round"
-        />
-      </svg>
+      <img src="/logo.png" alt="DentaDZ Logo" className="h-full w-full object-contain" />
     </span>
   );
 }
@@ -184,11 +165,32 @@ function LoginPromoPanel() {
 function LoginFormCard() {
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
   const router = useRouter();
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    router.push("/dashboard");
+    setError("");
+    setLoading(true);
+
+    try {
+      const data = await api<{ user: { name: string; role: string }; token: string; redirect: string }>("/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+
+      localStorage.setItem("auth_token", data.token);
+      localStorage.setItem("auth_user", JSON.stringify(data.user));
+
+      router.push(data.redirect || "/dashboard");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Erreur de connexion");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -208,6 +210,12 @@ function LoginFormCard() {
         </div>
 
         <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+              {error}
+            </div>
+          )}
+
           <div>
             <label htmlFor="email" className="mb-2 block text-sm font-semibold text-[#0F172A]">
               Adresse email
@@ -220,6 +228,8 @@ function LoginFormCard() {
                 type="email"
                 required
                 placeholder="Entrez votre adresse email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="h-14 w-full rounded-xl border border-slate-300 bg-white pl-12 pr-4 text-sm font-medium text-[#0F172A] outline-none transition placeholder:text-slate-400 focus:border-[#0F766E] focus:ring-4 focus:ring-teal-600/10"
               />
             </div>
@@ -243,6 +253,8 @@ function LoginFormCard() {
                 required
                 minLength={6}
                 placeholder="Entrez votre mot de passe"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
                 className="h-14 w-full rounded-xl border border-slate-300 bg-white pl-12 pr-12 text-sm font-medium text-[#0F172A] outline-none transition placeholder:text-slate-400 focus:border-[#0F766E] focus:ring-4 focus:ring-teal-600/10"
               />
               <button
@@ -274,10 +286,15 @@ function LoginFormCard() {
 
           <button
             type="submit"
-            className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-700 to-teal-600 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 transition-all hover:-translate-y-0.5 hover:from-teal-800 hover:to-teal-700 hover:shadow-xl active:scale-[0.99]"
+            disabled={loading}
+            className="inline-flex h-14 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-teal-700 to-teal-600 text-sm font-semibold text-white shadow-lg shadow-teal-700/20 transition-all hover:-translate-y-0.5 hover:from-teal-800 hover:to-teal-700 hover:shadow-xl active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
           >
-            <LogIn className="h-5 w-5" aria-hidden="true" />
-            Se connecter
+            {loading ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            ) : (
+              <LogIn className="h-5 w-5" aria-hidden="true" />
+            )}
+            {loading ? "Connexion en cours..." : "Se connecter"}
           </button>
 
           <div className="flex items-center gap-4">

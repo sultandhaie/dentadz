@@ -1,9 +1,14 @@
+"use client";
+
 import type { ComponentType, SVGProps } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import {
   CalendarCheck,
   CheckCircle2,
   Clock3,
   Lightbulb,
+  Loader2,
   MoreVertical,
   Plus,
   RefreshCw,
@@ -12,6 +17,7 @@ import {
   Users,
   Volume2,
 } from "lucide-react";
+import { api } from "../../lib/api";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -27,6 +33,7 @@ type QueuePatient = {
   order: number;
   name: string;
   phone: string;
+  patientCode: string;
   appointmentTime: string;
   appointmentLabel: string;
   treatment: string;
@@ -49,92 +56,87 @@ type DailyStat = {
   tone: "teal" | "blue" | "green" | "red" | "orange";
 };
 
-const stats = [
+type WaitingRoomEntry = {
+  id: number;
+  queue_number: number;
+  patient_id: number;
+  appointment_id: number;
+  appointment_time: string;
+  appointment_label: string;
+  treatment: string;
+  waiting_time: string;
+  status: string;
+  estimated_price: number;
+  patient: { first_name: string; last_name: string; phone: string; patient_code: string };
+  appointment?: Record<string, unknown>;
+};
+
+type StatsResponse = {
+  waiting?: number;
+  in_consultation?: number;
+  next?: number;
+  completed?: number;
+  waiting_count?: number;
+  in_consultation_count?: number;
+  next_count?: number;
+  completed_count?: number;
+};
+
+function mapApiStatus(raw: string): QueueStatus {
+  const map: Record<string, QueueStatus> = {
+    waiting: "En attente",
+    "En attente": "En attente",
+    in_consultation: "En consultation",
+    "En consultation": "En consultation",
+    next: "Prochain",
+    Prochain: "Prochain",
+    completed: "Terminé",
+    Terminé: "Terminé",
+    absent: "Absent",
+    Absent: "Absent",
+  };
+  return map[raw] ?? "En attente";
+}
+
+function mapApiEntry(entry: WaitingRoomEntry, index: number): QueuePatient {
+  return {
+    id: String(entry.id),
+    order: entry.queue_number ?? index + 1,
+    name: `${entry.patient.first_name} ${entry.patient.last_name}`,
+    phone: entry.patient.phone,
+    patientCode: entry.patient.patient_code,
+    appointmentTime: entry.appointment_time,
+    appointmentLabel: entry.appointment_label,
+    treatment: entry.treatment,
+    waitingTime: entry.waiting_time ?? "—",
+    status: mapApiStatus(entry.status),
+  };
+}
+
+const statsTemplate = [
   {
     title: "En attente",
-    value: "5",
     label: "patients",
     icon: Users,
     accent: "from-[#0F766E] to-[#2DD4BF]",
   },
   {
     title: "En consultation",
-    value: "2",
     label: "patients",
     icon: Stethoscope,
     accent: "from-[#2563EB] to-[#60A5FA]",
   },
   {
     title: "Prochains",
-    value: "3",
     label: "patients",
     icon: Clock3,
     accent: "from-[#F59E0B] to-[#FDBA74]",
   },
   {
-    title: "Terminés aujourd’hui",
-    value: "12",
+    title: "Terminés aujourd\u2019hui",
     label: "patients",
     icon: CheckCircle2,
     accent: "from-[#7C3AED] to-[#A78BFA]",
-  },
-];
-
-const queuePatients: QueuePatient[] = [
-  {
-    id: "WAIT-001",
-    order: 1,
-    name: "Sara Khaldi",
-    phone: "0661 10 20 30",
-    appointmentTime: "09:30",
-    appointmentLabel: "09:30 aujourd’hui",
-    treatment: "Consultation",
-    waitingTime: "00:15",
-    status: "En attente",
-  },
-  {
-    id: "WAIT-002",
-    order: 2,
-    name: "Mohamed Amrani",
-    phone: "0770 55 44 66",
-    appointmentTime: "10:00",
-    appointmentLabel: "10:00 aujourd’hui",
-    treatment: "Extraction",
-    waitingTime: "00:00",
-    status: "En consultation",
-  },
-  {
-    id: "WAIT-003",
-    order: 3,
-    name: "Lina Cherif",
-    phone: "0550 33 44 55",
-    appointmentTime: "11:00",
-    appointmentLabel: "11:00 aujourd’hui",
-    treatment: "Orthodontie",
-    waitingTime: "—",
-    status: "Prochain",
-  },
-  {
-    id: "WAIT-004",
-    order: 4,
-    name: "Yacine Saadi",
-    phone: "0777 44 55 66",
-    appointmentTime: "11:30",
-    appointmentLabel: "11:30 aujourd’hui",
-    treatment: "Plombage",
-    waitingTime: "—",
-    status: "En attente",
-  },
-  {
-    id: "WAIT-005",
-    order: 5,
-    name: "Nadia Boudiaf",
-    phone: "0560 12 34 56",
-    appointmentTime: "12:00",
-    appointmentLabel: "12:00 aujourd’hui",
-    treatment: "Détartrage",
-    waitingTime: "—",
-    status: "En attente",
   },
 ];
 
@@ -292,13 +294,30 @@ function StatCard({
   );
 }
 
-function QueueActionButton({ patient }: { patient: QueuePatient }) {
+function QueueActionButton({
+  patient,
+  onCallNext,
+  onComplete,
+}: {
+  patient: QueuePatient;
+  onCallNext: () => void;
+  onComplete: (id: string) => void;
+}) {
   const inConsultation = patient.status === "En consultation";
   const Icon = inConsultation ? UserCheck : Volume2;
+
+  const handleClick = () => {
+    if (inConsultation) {
+      onComplete(patient.id);
+    } else {
+      onCallNext();
+    }
+  };
 
   return (
     <button
       type="button"
+      onClick={handleClick}
       className={cx(
         "inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold transition-all duration-200",
         inConsultation
@@ -312,12 +331,22 @@ function QueueActionButton({ patient }: { patient: QueuePatient }) {
   );
 }
 
-function WaitingQueueCard() {
+function WaitingQueueCard({
+  queuePatients,
+  onRefresh,
+  onCallNext,
+  onComplete,
+}: {
+  queuePatients: QueuePatient[];
+  onRefresh: () => void;
+  onCallNext: () => void;
+  onComplete: (id: string) => void;
+}) {
   return (
     <article className={panelClass}>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-[#0F172A]">File d’attente</h2>
+          <h2 className="text-lg font-semibold text-[#0F172A]">File d\u2019attente</h2>
           <p className="text-sm font-medium text-[#64748B]">
             Patients arrivés et ordre de passage.
           </p>
@@ -332,6 +361,7 @@ function WaitingQueueCard() {
           </button>
           <button
             type="button"
+            onClick={onRefresh}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#0F172A] transition-all duration-200 hover:border-[#0F766E]/40 hover:bg-teal-50"
           >
             <RefreshCw className="h-4 w-4 text-[#0F766E]" aria-hidden="true" />
@@ -340,20 +370,36 @@ function WaitingQueueCard() {
         </div>
       </div>
 
-      <QueueDesktopTable />
-      <QueueMobileCards />
+      <QueueDesktopTable
+        queuePatients={queuePatients}
+        onCallNext={onCallNext}
+        onComplete={onComplete}
+      />
+      <QueueMobileCards
+        queuePatients={queuePatients}
+        onCallNext={onCallNext}
+        onComplete={onComplete}
+      />
 
       <a
         href="#"
         className="mx-auto mt-4 inline-flex w-full items-center justify-center text-sm font-bold text-[#0F766E] transition hover:text-[#115E59]"
       >
-        Voir toute la file d’attente →
+        Voir toute la file d\u2019attente →
       </a>
     </article>
   );
 }
 
-function QueueDesktopTable() {
+function QueueDesktopTable({
+  queuePatients,
+  onCallNext,
+  onComplete,
+}: {
+  queuePatients: QueuePatient[];
+  onCallNext: () => void;
+  onComplete: (id: string) => void;
+}) {
   return (
     <div className="hidden overflow-x-auto md:block">
       <table className="w-full min-w-[900px] border-separate border-spacing-0 text-left text-sm">
@@ -404,11 +450,15 @@ function QueueDesktopTable() {
               </td>
               <td className="border-b border-slate-100 py-3">
                 <div className="flex items-center gap-2">
-                  <QueueActionButton patient={patient} />
+                  <QueueActionButton
+                    patient={patient}
+                    onCallNext={onCallNext}
+                    onComplete={onComplete}
+                  />
                   <button
                     type="button"
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] transition-all duration-200 hover:border-[#0F766E]/40 hover:bg-teal-50 hover:text-[#0F766E]"
-                    aria-label={`Plus d’actions pour ${patient.name}`}
+                    aria-label={`Plus d\u2019actions pour ${patient.name}`}
                   >
                     <MoreVertical className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -422,7 +472,15 @@ function QueueDesktopTable() {
   );
 }
 
-function QueueMobileCards() {
+function QueueMobileCards({
+  queuePatients,
+  onCallNext,
+  onComplete,
+}: {
+  queuePatients: QueuePatient[];
+  onCallNext: () => void;
+  onComplete: (id: string) => void;
+}) {
   return (
     <div className="grid gap-3 md:hidden">
       {queuePatients.map((patient) => (
@@ -462,11 +520,15 @@ function QueueMobileCards() {
             </div>
           </div>
           <div className="mt-4 grid grid-cols-[minmax(0,1fr)_44px] gap-2">
-            <QueueActionButton patient={patient} />
+            <QueueActionButton
+              patient={patient}
+              onCallNext={onCallNext}
+              onComplete={onComplete}
+            />
             <button
               type="button"
               className="inline-flex h-10 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B]"
-              aria-label={`Plus d’actions pour ${patient.name}`}
+              aria-label={`Plus d\u2019actions pour ${patient.name}`}
             >
               <MoreVertical className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -477,7 +539,15 @@ function QueueMobileCards() {
   );
 }
 
-function CurrentConsultationCard() {
+function CurrentConsultationCard({
+  patient,
+  onComplete,
+}: {
+  patient: QueuePatient | undefined;
+  onComplete: (id: string) => void;
+}) {
+  if (!patient) return null;
+
   return (
     <article className={panelClass}>
       <div className="mb-4 flex items-center justify-between">
@@ -485,17 +555,18 @@ function CurrentConsultationCard() {
         <span className="h-3 w-3 rounded-full bg-[#22C55E] ring-4 ring-green-50" />
       </div>
       <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-green-50 via-white to-teal-50 p-3.5">
-        <Avatar name="Mohamed Amrani" className="h-12 w-12 text-sm" />
+        <Avatar name={patient.name} className="h-12 w-12 text-sm" />
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-bold text-[#0F172A]">Mohamed Amrani</h3>
-          <p className="text-sm font-semibold text-[#64748B]">Extraction</p>
+          <h3 className="truncate text-base font-bold text-[#0F172A]">{patient.name}</h3>
+          <p className="text-sm font-semibold text-[#64748B]">{patient.treatment}</p>
         </div>
         <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-bold text-green-700 ring-1 ring-green-100">
-          00:18
+          {patient.waitingTime}
         </span>
       </div>
       <button
         type="button"
+        onClick={() => onComplete(patient.id)}
         className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-sm font-bold text-[#EF4444] transition-all duration-200 hover:bg-red-50"
       >
         <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
@@ -505,7 +576,15 @@ function CurrentConsultationCard() {
   );
 }
 
-function NextPatientCard() {
+function NextPatientCard({
+  patient,
+  onStart,
+}: {
+  patient: QueuePatient | undefined;
+  onStart: (id: string, patientCode: string) => void;
+}) {
+  if (!patient) return null;
+
   return (
     <article className={panelClass}>
       <div className="mb-4 flex items-center justify-between">
@@ -513,15 +592,16 @@ function NextPatientCard() {
         <span className="h-3 w-3 rounded-full bg-[#2563EB] ring-4 ring-blue-50" />
       </div>
       <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-br from-blue-50 via-white to-slate-50 p-3.5">
-        <Avatar name="Lina Cherif" className="h-12 w-12 text-sm" />
+        <Avatar name={patient.name} className="h-12 w-12 text-sm" />
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-base font-bold text-[#0F172A]">Lina Cherif</h3>
-          <p className="text-sm font-semibold text-[#64748B]">Orthodontie</p>
+          <h3 className="truncate text-base font-bold text-[#0F172A]">{patient.name}</h3>
+          <p className="text-sm font-semibold text-[#64748B]">{patient.treatment}</p>
         </div>
-        <span className="text-xs font-bold text-[#2563EB]">RDV à 11:00</span>
+        <span className="text-xs font-bold text-[#2563EB]">RDV à {patient.appointmentTime}</span>
       </div>
       <button
         type="button"
+        onClick={() => onStart(patient.id, patient.patientCode)}
         className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-white text-sm font-bold text-[#2563EB] transition-all duration-200 hover:bg-blue-50"
       >
         <CalendarCheck className="h-4 w-4" aria-hidden="true" />
@@ -563,7 +643,7 @@ function TipCard() {
         <div>
           <h2 className="text-base font-bold">Astuce</h2>
           <p className="mt-1 text-sm font-semibold leading-6 text-[#0F766E]">
-            Utilisez le bouton “Appeler” pour notifier le patient via l’écran d’appel en salle d’attente.
+            Utilisez le bouton \u201CAppeler\u201D pour notifier le patient via l\u2019écran d\u2019appel en salle d\u2019attente.
           </p>
         </div>
       </div>
@@ -587,17 +667,24 @@ function ToothWatermark() {
   );
 }
 
-function CallScreenCard() {
+function CallScreenCard({
+  patient,
+  onCall,
+}: {
+  patient: QueuePatient | undefined;
+  onCall: () => void;
+}) {
   return (
     <article className="relative overflow-hidden rounded-2xl border border-teal-200 bg-gradient-to-br from-[#0F766E] to-[#2563EB] p-4 text-white shadow-[0_20px_45px_rgba(15,118,110,0.18)] 2xl:p-5">
       <ToothWatermark />
       <div className="relative">
-        <h2 className="text-lg font-semibold">Écran d’appel</h2>
+        <h2 className="text-lg font-semibold">Écran d\u2019appel</h2>
         <p className="mt-4 text-xs font-bold uppercase text-white/70">Patient à appeler</p>
-        <h3 className="mt-1 text-2xl font-bold">Sara Khaldi</h3>
-        <p className="mt-1 text-sm font-semibold text-white/80">Consultation</p>
+        <h3 className="mt-1 text-2xl font-bold">{patient?.name ?? "Aucun patient"}</h3>
+        <p className="mt-1 text-sm font-semibold text-white/80">{patient?.treatment ?? ""}</p>
         <button
           type="button"
+          onClick={onCall}
           className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-white text-sm font-bold text-[#0F766E] shadow-lg transition-all duration-200 hover:bg-teal-50"
         >
           <Volume2 className="h-4 w-4" aria-hidden="true" />
@@ -671,32 +758,131 @@ function RecentCallsCard() {
         href="#"
         className="mx-auto mt-4 inline-flex w-full items-center justify-center text-sm font-bold text-[#0F766E] transition hover:text-[#115E59]"
       >
-        Voir tout l’historique →
+        Voir tout l\u2019historique →
       </a>
     </article>
   );
 }
 
 export default function SalleAttentePage() {
+  const router = useRouter();
+  const [queuePatients, setQueuePatients] = useState<QueuePatient[]>([]);
+  const [statsValues, setStatsValues] = useState<Record<string, string>>({
+    "En attente": "0",
+    "En consultation": "0",
+    Prochains: "0",
+    "Terminés aujourd\u2019hui": "0",
+  });
+  const [loading, setLoading] = useState(true);
+
+  const fetchData = useCallback(async () => {
+    try {
+      const [roomData, statsData] = await Promise.all([
+        api<{ data: WaitingRoomEntry[]; meta?: Record<string, unknown> }>("/waiting-room"),
+        api<StatsResponse>("/waiting-room/stats"),
+      ]);
+
+      const mapped = roomData.data.map((entry, index) => mapApiEntry(entry, index));
+      setQueuePatients(mapped);
+
+      setStatsValues({
+        "En attente": String(
+          statsData.waiting ?? statsData.waiting_count ?? 0,
+        ),
+        "En consultation": String(
+          statsData.in_consultation ?? statsData.in_consultation_count ?? 0,
+        ),
+        Prochains: String(statsData.next ?? statsData.next_count ?? 0),
+        "Terminés aujourd\u2019hui": String(
+          statsData.completed ?? statsData.completed_count ?? 0,
+        ),
+      });
+    } catch (err) {
+      console.error("Failed to fetch waiting room data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleCallNext = async () => {
+    try {
+      await api("/waiting-room/call-next", { method: "POST" });
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to call next patient:", err);
+    }
+  };
+
+  const handleComplete = async (id: string) => {
+    try {
+      await api(`/waiting-room/${id}/complete`, { method: "POST" });
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to complete consultation:", err);
+    }
+  };
+
+  const handleStart = async (id: string, patientCode: string) => {
+    try {
+      await api(`/waiting-room/${id}/start`, { method: "POST" });
+      router.push(`/patients/${patientCode}?consultation=active`);
+    } catch (err) {
+      console.error("Failed to start preparation:", err);
+    }
+  };
+
+  const currentConsultation = queuePatients.find(
+    (p) => p.status === "En consultation",
+  );
+  const nextPatient = queuePatients.find((p) => p.status === "Prochain");
+  const firstWaiting = queuePatients.find((p) => p.status === "En attente");
+
+  if (loading) {
+    return (
+      <section className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0F766E]" />
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-5">
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Statistiques salle d’attente">
-        {stats.map((stat) => (
-          <StatCard key={stat.title} {...stat} />
+      <section
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+        aria-label="Statistiques salle d\u2019attente"
+      >
+        {statsTemplate.map((stat) => (
+          <StatCard
+            key={stat.title}
+            {...stat}
+            value={statsValues[stat.title] ?? "0"}
+          />
         ))}
       </section>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_380px] 2xl:gap-5">
         <section className="space-y-4 2xl:space-y-5">
-          <WaitingQueueCard />
+          <WaitingQueueCard
+            queuePatients={queuePatients}
+            onRefresh={fetchData}
+            onCallNext={handleCallNext}
+            onComplete={handleComplete}
+          />
           <RecentCallsCard />
         </section>
         <aside className="space-y-4 2xl:space-y-5">
-          <CurrentConsultationCard />
-          <NextPatientCard />
+          <CurrentConsultationCard
+            patient={currentConsultation}
+            onComplete={handleComplete}
+          />
+          <NextPatientCard patient={nextPatient} onStart={handleStart} />
           <DailyStatsCard />
           <TipCard />
-          <CallScreenCard />
+          <CallScreenCard patient={firstWaiting} onCall={handleCallNext} />
         </aside>
       </div>
     </section>

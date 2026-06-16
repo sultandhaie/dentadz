@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Bell,
@@ -22,6 +22,7 @@ import {
   Hash,
   Languages,
   List,
+  Loader2,
   Percent,
   Pencil,
   Ruler,
@@ -37,6 +38,7 @@ import {
   Users,
   Wrench,
 } from "lucide-react";
+import { api } from "../../lib/api";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -45,6 +47,26 @@ type SettingRow =
   | { type: "input"; label: string; value: string; icon: IconComponent; description?: string }
   | { type: "toggle"; label: string; enabled: boolean; icon: IconComponent; description?: string }
   | { type: "action"; label: string; buttonLabel: string; icon: IconComponent; description?: string; danger?: boolean };
+
+interface ClinicInfo {
+  name: string;
+  specialty: string;
+  phone: string;
+  email: string;
+  address: string;
+  website: string;
+}
+
+interface ClinicSetting {
+  id: number;
+  key: string;
+  value: string;
+  group: string;
+  type: string;
+  label: string;
+  description: string;
+  is_public: boolean;
+}
 
 const tabs = [
   { label: "Général", icon: Settings },
@@ -57,30 +79,30 @@ const tabs = [
   { label: "Sauvegarde", icon: DatabaseBackup },
 ];
 
-const clinicInfo = {
-  name: "Cabinet Dentaire DentaDZ",
-  specialty: "Cabinet dentaire",
-  phone: "0555 12 34 56",
-  email: "contact@dentadz.dz",
-  address: "12 Rue des Frères Bouadou, Oran, Algérie",
-  website: "https://dentadz.dz",
+const defaultClinicInfo: ClinicInfo = {
+  name: "",
+  specialty: "",
+  phone: "",
+  email: "",
+  address: "",
+  website: "",
 };
 
 const generalPreferences: SettingRow[] = [
-  { type: "select", label: "Langue de l’interface", value: "Français", icon: Languages },
+  { type: "select", label: "Langue de l\u2019interface", value: "Français", icon: Languages },
   { type: "select", label: "Fuseau horaire", value: "(UTC+1) Afrique/Alger", icon: Clock },
   { type: "select", label: "Format de date", value: "DD MMM YYYY (10 Juin 2026)", icon: Calendar },
-  { type: "select", label: "Format d’heure", value: "24 heures (14:30)", icon: Timer },
+  { type: "select", label: "Format d\u2019heure", value: "24 heures (14:30)", icon: Timer },
   { type: "select", label: "Devise", value: "Dinar Algérien (DA)", icon: CircleDollarSign },
   { type: "select", label: "Thème", value: "Clair", icon: Sun },
 ];
 
 const appointmentSettings: SettingRow[] = [
-  { type: "select", label: "Durée par défaut d’un rendez-vous", value: "30 minutes", icon: Clock3 },
+  { type: "select", label: "Durée par défaut d\u2019un rendez-vous", value: "30 minutes", icon: Clock3 },
   { type: "select", label: "Intervalle entre les rendez-vous", value: "15 minutes", icon: CalendarClock },
   { type: "toggle", label: "Autoriser la prise de rendez-vous en ligne", description: "Les patients peuvent réserver via le lien public", enabled: true, icon: CalendarDays },
   { type: "toggle", label: "Rappel automatique par SMS/Email", description: "Envoyer un rappel avant chaque rendez-vous", enabled: true, icon: Bell },
-  { type: "toggle", label: "Notifications des nouveaux rendez-vous", description: "Recevoir une notification lors d’un nouveau rendez-vous", enabled: true, icon: Clock },
+  { type: "toggle", label: "Notifications des nouveaux rendez-vous", description: "Recevoir une notification lors d\u2019un nouveau rendez-vous", enabled: true, icon: Clock },
 ];
 
 const paymentSettings: SettingRow[] = [
@@ -94,19 +116,19 @@ const paymentSettings: SettingRow[] = [
 const medicalPreferences: SettingRow[] = [
   { type: "select", label: "Système de numérotation dentaire", value: "FDI (Système international)", icon: Hash },
   { type: "select", label: "Unités de mesure", value: "Métrique (mm, cm, kg)", icon: Ruler },
-  { type: "toggle", label: "Afficher les allergies patients", description: "Alerter en cas d’allergie connue", enabled: true, icon: TriangleAlert },
-  { type: "select", label: "Modèles d’ordonnances par défaut", value: "Modèle standard", icon: FileText },
+  { type: "toggle", label: "Afficher les allergies patients", description: "Alerter en cas d\u2019allergie connue", enabled: true, icon: TriangleAlert },
+  { type: "select", label: "Modèles d\u2019ordonnances par défaut", value: "Modèle standard", icon: FileText },
 ];
 
 const otherSettings: SettingRow[] = [
   { type: "select", label: "Nombre de résultats par page", value: "10", icon: List },
   { type: "select", label: "Délai de session (minutes)", value: "60", icon: Clock },
-  { type: "toggle", label: "Mode maintenance", description: "Désactiver temporairement l’accès au système", enabled: false, icon: Wrench },
+  { type: "toggle", label: "Mode maintenance", description: "Désactiver temporairement l\u2019accès au système", enabled: false, icon: Wrench },
   { type: "action", label: "Suppression des données", description: "Supprimer définitivement des données", buttonLabel: "Gérer", danger: true, icon: Trash2 },
 ];
 
 const shortcuts = [
-  { label: "Modèles d’ordonnances", icon: FileText },
+  { label: "Modèles d\u2019ordonnances", icon: FileText },
   { label: "Catégories de traitements", icon: Stethoscope },
   { label: "Moyens de paiement", icon: CreditCard },
   { label: "Pharmacies", icon: Building2 },
@@ -219,7 +241,7 @@ function SettingsCard({ title, rows }: { title: string; rows: SettingRow[] }) {
   );
 }
 
-function ClinicInformationCard() {
+function ClinicInformationCard({ clinicInfo }: { clinicInfo: ClinicInfo }) {
   return (
     <article className={cx(panelClass, "2xl:col-span-2")}>
       <h2 className="text-lg font-semibold text-[#0F172A]">Informations du cabinet</h2>
@@ -315,7 +337,7 @@ function SystemInfoCard() {
     <article className={panelClass}>
       <h2 className="text-lg font-semibold text-[#0F172A]">Informations système</h2>
       <dl className="mt-4 space-y-3 text-sm">
-        <div className="flex items-center justify-between gap-3"><dt className="font-semibold text-[#64748B]">Version de l’application</dt><dd className="font-bold text-[#0F172A]">v2.4.0</dd></div>
+        <div className="flex items-center justify-between gap-3"><dt className="font-semibold text-[#64748B]">Version de l\u2019application</dt><dd className="font-bold text-[#0F172A]">v2.4.0</dd></div>
         <div className="flex items-center justify-between gap-3"><dt className="font-semibold text-[#64748B]">Base de données</dt><dd className="font-bold text-[#0F172A]">MySQL 8.0</dd></div>
         <div>
           <div className="flex items-center justify-between gap-3"><dt className="font-semibold text-[#64748B]">Espace utilisé</dt><dd className="font-bold text-[#0F172A]">2.45 GB / 10 GB</dd></div>
@@ -328,13 +350,55 @@ function SystemInfoCard() {
 }
 
 export default function ParametresPage() {
+  const [clinicInfo, setClinicInfo] = useState<ClinicInfo>(defaultClinicInfo);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<ClinicSetting[]>("/clinic-settings")
+      .then((settings) => {
+        const map: Record<string, string> = {};
+        for (const s of settings) {
+          map[s.key] = s.value;
+        }
+        setClinicInfo({
+          name: map["clinic_name"] || "",
+          specialty: map["clinic_specialty"] || "",
+          phone: map["clinic_phone"] || "",
+          email: map["clinic_email"] || "",
+          address: map["clinic_address"] || "",
+          website: map["clinic_website"] || "",
+        });
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="flex items-center justify-center py-32">
+        <Loader2 className="h-8 w-8 animate-spin text-[#0F766E]" />
+        <span className="ml-3 text-sm font-semibold text-[#64748B]">Chargement des paramètres…</span>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="flex items-center justify-center py-32">
+        <TriangleAlert className="h-8 w-8 text-red-500" />
+        <span className="ml-3 text-sm font-semibold text-red-500">{error}</span>
+      </section>
+    );
+  }
+
   return (
     <section className="space-y-5">
       <SettingsTabs />
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className="min-w-0">
           <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
-            <ClinicInformationCard />
+            <ClinicInformationCard clinicInfo={clinicInfo} />
             <SettingsCard title="Préférences générales" rows={generalPreferences} />
             <SettingsCard title="Paramètres des rendez-vous" rows={appointmentSettings} />
             <SettingsCard title="Paramètres des paiements" rows={paymentSettings} />

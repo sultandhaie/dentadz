@@ -1,33 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Calendar,
   CheckCircle,
   FileText,
   HeartHandshake,
   Info,
+  Loader2,
   Phone,
   ShieldAlert,
   User,
   UserCheck,
 } from "lucide-react";
+import { api } from "../../../lib/api";
+
+interface Dentist {
+  id: number;
+  name: string;
+  specialty?: string;
+}
 
 export default function NouveauPatientPage() {
   const router = useRouter();
+  const [dentists, setDentists] = useState<Dentist[]>([]);
   const [formData, setFormData] = useState({
     nom: "",
     prenom: "",
     dateNaissance: "",
-    genre: "Homme",
+    genre: "Homme" as "Homme" | "Femme",
     telephone: "",
     email: "",
     adresse: "",
     groupeSanguin: "Non spécifié",
-    dentiste: "Dr Benali",
+    dentisteId: "",
     allergies: "",
     antecedents: "",
     contactUrgenceNom: "",
@@ -38,20 +46,24 @@ export default function NouveauPatientPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [serverError, setServerError] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token") || "";
+    api<Dentist[]>("/dentists", { token })
+      .then(setDentists)
+      .catch(() => {});
+  }, []);
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, name }));
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
-  };
-
-  const handleGenreChange = (genre: "Homme" | "Femme") => {
-    setFormData((prev) => ({ ...prev, genre }));
+    setServerError("");
   };
 
   const validateForm = () => {
@@ -67,12 +79,11 @@ export default function NouveauPatientPage() {
     return newErrors;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validationErrors = validateForm();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
-      // Scroll to the first error
       const firstErrorKey = Object.keys(validationErrors)[0];
       const element = document.getElementsByName(firstErrorKey)[0];
       if (element) {
@@ -82,11 +93,40 @@ export default function NouveauPatientPage() {
     }
 
     setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsSubmitting(false);
+    setServerError("");
+
+    const token = localStorage.getItem("auth_token") || "";
+    const payload: Record<string, unknown> = {
+      first_name: formData.prenom.trim(),
+      last_name: formData.nom.trim(),
+      phone: formData.telephone.trim(),
+      gender: formData.genre,
+      status: "Nouveau",
+    };
+
+    if (formData.dateNaissance) payload.birth_date = formData.dateNaissance;
+    if (formData.email.trim()) payload.email = formData.email.trim();
+    if (formData.adresse.trim()) payload.address = formData.adresse.trim();
+    if (formData.groupeSanguin !== "Non spécifié") payload.blood_type = formData.groupeSanguin;
+    if (formData.dentisteId) payload.assigned_dentist_id = Number(formData.dentisteId);
+    if (formData.allergies.trim()) payload.allergies = formData.allergies.trim();
+    if (formData.antecedents.trim()) payload.medical_notes = formData.antecedents.trim();
+    if (formData.contactUrgenceNom.trim()) payload.emergency_contact = formData.contactUrgenceNom.trim();
+    if (formData.contactUrgenceTel.trim()) payload.emergency_phone = formData.contactUrgenceTel.trim();
+
+    try {
+      await api("/patients", {
+        method: "POST",
+        token,
+        body: JSON.stringify(payload),
+      });
       setShowSuccess(true);
-    }, 1200);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur lors de la création";
+      setServerError(msg);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleReset = () => {
@@ -99,7 +139,7 @@ export default function NouveauPatientPage() {
       email: "",
       adresse: "",
       groupeSanguin: "Non spécifié",
-      dentiste: "Dr Benali",
+      dentisteId: "",
       allergies: "",
       antecedents: "",
       contactUrgenceNom: "",
@@ -107,12 +147,12 @@ export default function NouveauPatientPage() {
       notes: "",
     });
     setErrors({});
+    setServerError("");
     setShowSuccess(false);
   };
 
   return (
     <div className="space-y-6">
-      {/* Breadcrumb & Title */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <Link
@@ -138,13 +178,13 @@ export default function NouveauPatientPage() {
       </div>
 
       {showSuccess ? (
-        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-6 text-center shadow-[0_20px_45px_rgba(16,185,129,0.06)] animate-fade-in">
+        <div className="rounded-2xl border border-emerald-100 bg-emerald-50/50 p-6 text-center shadow-[0_20px_45px_rgba(16,185,129,0.06)]">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
             <CheckCircle className="h-8 w-8" />
           </div>
           <h3 className="mt-4 text-lg font-bold text-[#0F172A]">Dossier créé avec succès !</h3>
           <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B]">
-            Le dossier médical de <strong>{formData.prenom} {formData.nom.toUpperCase()}</strong> a été enregistré dans le système. Vous pouvez maintenant planifier un rendez-vous ou ajouter des traitements.
+            Le dossier médical de <strong>{formData.prenom} {formData.nom.toUpperCase()}</strong> a été enregistré dans le système.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <button
@@ -163,15 +203,20 @@ export default function NouveauPatientPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="grid gap-6 xl:grid-cols-3">
-          {/* Main Information Form Column */}
           <div className="space-y-6 xl:col-span-2">
-            {/* Identity & Contact Card */}
+            {serverError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {serverError}
+              </div>
+            )}
+
+            {/* Identity & Contact */}
             <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-[0_20px_45px_rgba(15,23,42,0.05)]">
               <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-[#0F766E]">
                   <User className="h-4.5 w-4.5" />
                 </span>
-                <h3 className="text-base font-bold text-[#0F172A]">Informations d'identité & Contact</h3>
+                <h3 className="text-base font-bold text-[#0F172A]">Informations d&apos;identité & Contact</h3>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
@@ -239,28 +284,20 @@ export default function NouveauPatientPage() {
                     Genre <span className="text-red-500">*</span>
                   </span>
                   <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleGenreChange("Homme")}
-                      className={`h-11 rounded-xl text-sm font-bold border transition ${
-                        formData.genre === "Homme"
-                          ? "bg-teal-50 border-[#0F766E] text-[#0F766E]"
-                          : "bg-white border-[#E2E8F0] text-[#64748B] hover:bg-slate-50"
-                      }`}
-                    >
-                      Homme
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleGenreChange("Femme")}
-                      className={`h-11 rounded-xl text-sm font-bold border transition ${
-                        formData.genre === "Femme"
-                          ? "bg-teal-50 border-[#0F766E] text-[#0F766E]"
-                          : "bg-white border-[#E2E8F0] text-[#64748B] hover:bg-slate-50"
-                      }`}
-                    >
-                      Femme
-                    </button>
+                    {(["Homme", "Femme"] as const).map((g) => (
+                      <button
+                        key={g}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, genre: g }))}
+                        className={`h-11 rounded-xl text-sm font-bold border transition ${
+                          formData.genre === g
+                            ? "bg-teal-50 border-[#0F766E] text-[#0F766E]"
+                            : "bg-white border-[#E2E8F0] text-[#64748B] hover:bg-slate-50"
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
@@ -319,7 +356,7 @@ export default function NouveauPatientPage() {
               </div>
             </div>
 
-            {/* Medical Context Card */}
+            {/* Medical Info */}
             <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-[0_20px_45px_rgba(15,23,42,0.05)]">
               <div className="mb-5 flex items-center gap-3 border-b border-slate-100 pb-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-[#0F766E]">
@@ -353,19 +390,22 @@ export default function NouveauPatientPage() {
                 </div>
 
                 <div>
-                  <label htmlFor="dentiste" className="block text-xs font-bold uppercase tracking-wide text-[#64748B] mb-1.5">
+                  <label htmlFor="dentisteId" className="block text-xs font-bold uppercase tracking-wide text-[#64748B] mb-1.5">
                     Dentiste Référent
                   </label>
                   <select
-                    id="dentiste"
-                    name="dentiste"
-                    value={formData.dentiste}
+                    id="dentisteId"
+                    name="dentisteId"
+                    value={formData.dentisteId}
                     onChange={handleChange}
                     className="h-11 w-full rounded-xl border border-[#E2E8F0] px-3 text-sm font-bold text-[#0F172A] outline-none transition focus:border-[#0F766E] focus:ring-4 focus:ring-teal-700/10"
                   >
-                    <option value="Dr Benali">Dr Benali</option>
-                    <option value="Dr Amrani">Dr Amrani</option>
-                    <option value="Dr Cherif">Dr Cherif</option>
+                    <option value="">Sélectionner un dentiste</option>
+                    {dentists.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.name}{d.specialty ? ` — ${d.specialty}` : ""}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -381,7 +421,7 @@ export default function NouveauPatientPage() {
                     onChange={handleChange}
                     className="w-full rounded-xl border border-[#E2E8F0] p-3 text-sm font-medium outline-none transition focus:border-[#0F766E] focus:ring-4 focus:ring-teal-700/10"
                     placeholder="ex: Pénicilline, Aspirine, Latex... (laisser vide si aucune)"
-                  ></textarea>
+                  />
                 </div>
 
                 <div className="sm:col-span-2">
@@ -396,13 +436,13 @@ export default function NouveauPatientPage() {
                     onChange={handleChange}
                     className="w-full rounded-xl border border-[#E2E8F0] p-3 text-sm font-medium outline-none transition focus:border-[#0F766E] focus:ring-4 focus:ring-teal-700/10"
                     placeholder="ex: Hypertension, Diabète, Maladies cardiaques..."
-                  ></textarea>
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Sidebar Form Info Column */}
+          {/* Sidebar */}
           <div className="space-y-6">
             {/* Emergency Contact */}
             <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-[0_20px_45px_rgba(15,23,42,0.05)]">
@@ -410,7 +450,7 @@ export default function NouveauPatientPage() {
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-[#0F766E]">
                   <HeartHandshake className="h-4.5 w-4.5" />
                 </span>
-                <h3 className="text-base font-bold text-[#0F172A]">Contact d'urgence</h3>
+                <h3 className="text-base font-bold text-[#0F172A]">Contact d&apos;urgence</h3>
               </div>
 
               <div className="space-y-3">
@@ -445,7 +485,7 @@ export default function NouveauPatientPage() {
               </div>
             </div>
 
-            {/* Notes & Administrative Info */}
+            {/* Notes */}
             <div className="rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-[0_20px_45px_rgba(15,23,42,0.05)]">
               <div className="mb-4 flex items-center gap-3 border-b border-slate-100 pb-3">
                 <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-[#0F766E]">
@@ -466,18 +506,18 @@ export default function NouveauPatientPage() {
                   onChange={handleChange}
                   className="w-full rounded-xl border border-[#E2E8F0] p-3 text-sm font-medium outline-none transition focus:border-[#0F766E]"
                   placeholder="Notes complémentaires..."
-                ></textarea>
+                />
               </div>
 
               <div className="mt-4 rounded-xl bg-slate-50 p-3 flex gap-2">
                 <Info className="h-4.5 w-4.5 text-[#0F766E] shrink-0 mt-0.5" />
                 <p className="text-[11px] font-semibold text-[#64748B] leading-4">
-                  Les champs marqués d'une étoile (*) sont requis. La création du dossier valide la charte de confidentialité.
+                  Les champs marqués d&apos;une étoile (*) sont requis.
                 </p>
               </div>
             </div>
 
-            {/* Submit Actions */}
+            {/* Submit */}
             <div className="flex flex-col gap-2">
               <button
                 type="submit"
@@ -486,10 +526,7 @@ export default function NouveauPatientPage() {
               >
                 {isSubmitting ? (
                   <>
-                    <svg className="h-5 w-5 animate-spin text-white" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
+                    <Loader2 className="h-5 w-5 animate-spin" />
                     <span>Enregistrement...</span>
                   </>
                 ) : (

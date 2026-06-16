@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { ComponentType, SVGProps } from "react";
 import {
   Activity,
@@ -19,6 +20,7 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import { api } from "../../lib/api";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -30,66 +32,58 @@ type Stat = {
   accent: string;
 };
 
-const stats: Stat[] = [
-  {
-    title: "Chiffre d'affaires",
-    value: "1.24M DA",
-    label: "+14% vs mois dernier",
-    icon: Wallet,
-    accent: "from-[#0F766E] to-[#2DD4BF]",
-  },
-  {
-    title: "Rendez-vous",
-    value: "342",
-    label: "89% confirmés",
-    icon: CalendarDays,
-    accent: "from-[#2563EB] to-[#60A5FA]",
-  },
-  {
-    title: "Nouveaux patients",
-    value: "58",
-    label: "+9 cette semaine",
-    icon: Users,
-    accent: "from-[#7C3AED] to-[#A78BFA]",
-  },
-  {
-    title: "Paiements reçus",
-    value: "420k DA",
-    label: "156 transactions",
-    icon: CreditCard,
-    accent: "from-[#06B6D4] to-[#67E8F9]",
-  },
-];
+type DashboardData = {
+  stats: {
+    today_appointments: number;
+    today_confirmed: number;
+    today_en_attente: number;
+    today_en_consultation: number;
+    today_termine: number;
+    month_revenue: number;
+    month_payments_remaining: number;
+    total_patients: number;
+    new_patients_this_month: number;
+    patients_en_traitement: number;
+    active_plans: number;
+    completed_plans: number;
+  };
+  revenue_chart: { label: string; value: number }[];
+  appointment_stats: { label: string; value: number; color: string }[];
+  treatment_breakdown: { name: string; count: number; color: string }[];
+  dentist_performance: {
+    name: string;
+    role: string;
+    patients: number;
+    revenue: string;
+    rate: string;
+    score: number;
+  }[];
+  recent_activity: {
+    time: string;
+    title: string;
+    detail: string;
+    icon: string;
+    color: string;
+    bg: string;
+  }[];
+};
 
-const revenueMonths = [
-  { label: "Jan", value: 42 },
-  { label: "Fév", value: 55 },
-  { label: "Mar", value: 48 },
-  { label: "Avr", value: 64 },
-  { label: "Mai", value: 72 },
-  { label: "Juin", value: 86 },
-];
+const appointmentTextColor: Record<string, string> = {
+  Confirmés: "text-green-700",
+  "En attente": "text-orange-700",
+  Annulés: "text-red-700",
+  Terminés: "text-blue-700",
+};
 
-const appointmentStats = [
-  { label: "Confirmés", value: 214, color: "bg-[#22C55E]", text: "text-green-700" },
-  { label: "En attente", value: 76, color: "bg-[#F59E0B]", text: "text-orange-700" },
-  { label: "Annulés", value: 31, color: "bg-[#EF4444]", text: "text-red-700" },
-  { label: "Terminés", value: 21, color: "bg-[#2563EB]", text: "text-blue-700" },
-];
-
-const treatmentBreakdown = [
-  { name: "Détartrage", count: 48, percent: "28%", color: "bg-[#0F766E]" },
-  { name: "Consultation", count: 42, percent: "24%", color: "bg-[#2563EB]" },
-  { name: "Extraction", count: 31, percent: "18%", color: "bg-[#F59E0B]" },
-  { name: "Couronne", count: 26, percent: "15%", color: "bg-[#7C3AED]" },
-  { name: "Implant", count: 18, percent: "10%", color: "bg-[#06B6D4]" },
-];
-
-const dentistPerformance = [
-  { name: "Dr Benali", role: "Chirurgie & prothèse", patients: 124, revenue: "680.000 DA", rate: "96%", score: 92 },
-  { name: "Dr Cherif", role: "Soins conservateurs", patients: 108, revenue: "510.000 DA", rate: "91%", score: 84 },
-  { name: "Dr Amrani", role: "Orthodontie", patients: 72, revenue: "345.000 DA", rate: "88%", score: 76 },
-];
+function formatDA(amount: number): string {
+  if (amount >= 1_000_000) {
+    return `${(amount / 1_000_000).toFixed(2)}M DA`;
+  }
+  if (amount >= 1_000) {
+    return `${Math.round(amount / 1_000)}k DA`;
+  }
+  return `${amount} DA`;
+}
 
 const reportDownloads = [
   { title: "Rapport financier mensuel", detail: "Revenus, paiements et restes à encaisser", icon: ReceiptText },
@@ -165,7 +159,7 @@ function StatCard({ title, value, label, icon: Icon, accent }: Stat) {
   );
 }
 
-function RevenueChartCard() {
+function RevenueChartCard({ revenueMonths }: { revenueMonths: { label: string; value: number }[] }) {
   return (
     <article className={panelClass}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -195,14 +189,20 @@ function RevenueChartCard() {
   );
 }
 
-function AppointmentStatusCard() {
+function AppointmentStatusCard({
+  appointmentStats,
+  totalAppointments,
+}: {
+  appointmentStats: { label: string; value: number; color: string; text: string }[];
+  totalAppointments: number;
+}) {
   return (
     <article className={panelClass}>
       <h2 className="text-lg font-semibold text-[#0F172A]">Statuts des rendez-vous</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-[150px_1fr] sm:items-center xl:grid-cols-1 2xl:grid-cols-[150px_1fr]">
         <div className="mx-auto flex h-36 w-36 items-center justify-center rounded-full bg-[conic-gradient(#22C55E_0_63%,#F59E0B_63%_85%,#EF4444_85%_94%,#2563EB_94%_100%)]">
           <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white text-center shadow-inner">
-            <span className="text-lg font-bold text-[#0F172A]">342</span>
+            <span className="text-lg font-bold text-[#0F172A]">{totalAppointments}</span>
             <span className="text-[11px] font-bold text-[#64748B]">RDV</span>
           </div>
         </div>
@@ -222,7 +222,11 @@ function AppointmentStatusCard() {
   );
 }
 
-function TreatmentBreakdownCard() {
+function TreatmentBreakdownCard({
+  treatmentBreakdown,
+}: {
+  treatmentBreakdown: { name: string; count: number; percent: string; color: string }[];
+}) {
   const max = Math.max(...treatmentBreakdown.map((item) => item.count));
 
   return (
@@ -248,7 +252,11 @@ function TreatmentBreakdownCard() {
   );
 }
 
-function DentistPerformanceCard() {
+function DentistPerformanceCard({
+  dentistPerformance,
+}: {
+  dentistPerformance: { name: string; role: string; patients: number; revenue: string; rate: string; score: number }[];
+}) {
   return (
     <article className={panelClass}>
       <div className="flex items-center justify-between gap-3">
@@ -366,6 +374,93 @@ function SummaryStrip() {
 }
 
 export default function RapportsPage() {
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api<DashboardData>("/dashboard")
+      .then((data) => {
+        setDashboard(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0F766E]" />
+          <p className="text-sm font-semibold text-[#64748B]">Chargement des rapports…</p>
+        </div>
+      </section>
+    );
+  }
+
+  if (error || !dashboard) {
+    return (
+      <section className="flex min-h-[60vh] items-center justify-center">
+        <p className="text-sm font-semibold text-red-600">{error || "Erreur de chargement"}</p>
+      </section>
+    );
+  }
+
+  const totalAppointments = dashboard.appointment_stats.reduce((sum, s) => sum + s.value, 0);
+  const confirmedCount = dashboard.appointment_stats.find((s) => s.label === "Confirmés")?.value || 0;
+  const confirmedPercent = totalAppointments > 0 ? Math.round((confirmedCount / totalAppointments) * 100) : 0;
+
+  const stats: Stat[] = [
+    {
+      title: "Chiffre d'affaires",
+      value: formatDA(dashboard.stats.month_revenue),
+      label: "+14% vs mois dernier",
+      icon: Wallet,
+      accent: "from-[#0F766E] to-[#2DD4BF]",
+    },
+    {
+      title: "Rendez-vous",
+      value: String(totalAppointments),
+      label: `${confirmedPercent}% confirmés`,
+      icon: CalendarDays,
+      accent: "from-[#2563EB] to-[#60A5FA]",
+    },
+    {
+      title: "Nouveaux patients",
+      value: String(dashboard.stats.new_patients_this_month),
+      label: `sur ${dashboard.stats.total_patients} total`,
+      icon: Users,
+      accent: "from-[#7C3AED] to-[#A78BFA]",
+    },
+    {
+      title: "Paiements reçus",
+      value: formatDA(dashboard.stats.month_revenue),
+      label: `${totalAppointments} transactions`,
+      icon: CreditCard,
+      accent: "from-[#06B6D4] to-[#67E8F9]",
+    },
+  ];
+
+  const maxRevenue = Math.max(...dashboard.revenue_chart.map((m) => m.value), 1);
+  const revenueMonths = dashboard.revenue_chart.map((m) => ({
+    label: m.label,
+    value: Math.round((m.value / maxRevenue) * 100),
+  }));
+
+  const appointmentStats = dashboard.appointment_stats.map((s) => ({
+    ...s,
+    text: appointmentTextColor[s.label] || "text-[#0F172A]",
+  }));
+
+  const treatmentTotal = dashboard.treatment_breakdown.reduce((sum, t) => sum + t.count, 0);
+  const treatmentBreakdown = dashboard.treatment_breakdown.map((t) => ({
+    ...t,
+    percent: treatmentTotal > 0 ? `${Math.round((t.count / treatmentTotal) * 100)}%` : "0%",
+  }));
+
   return (
     <section className="space-y-5">
       <div className="flex justify-end">
@@ -382,14 +477,17 @@ export default function RapportsPage() {
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className="min-w-0 space-y-5">
-          <RevenueChartCard />
+          <RevenueChartCard revenueMonths={revenueMonths} />
           <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
-            <TreatmentBreakdownCard />
-            <DentistPerformanceCard />
+            <TreatmentBreakdownCard treatmentBreakdown={treatmentBreakdown} />
+            <DentistPerformanceCard dentistPerformance={dashboard.dentist_performance} />
           </div>
         </section>
         <aside className="space-y-5 xl:sticky xl:top-4 xl:self-start">
-          <AppointmentStatusCard />
+          <AppointmentStatusCard
+            appointmentStats={appointmentStats}
+            totalAppointments={totalAppointments}
+          />
           <DownloadsCard />
           <InsightsCard />
         </aside>

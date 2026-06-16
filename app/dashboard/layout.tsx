@@ -8,8 +8,7 @@ export default function DashboardLayout({
   return (
     <ClinicShell
       activeRoute="dashboard"
-      title="Bonjour, Dr Benali 👋"
-      subtitle="Voici l’activité de votre cabinet aujourd’hui."
+      subtitle="Voici l'activité de votre cabinet aujourd'hui."
       searchPlaceholder="Rechercher patient, rendez-vous..."
     >
       {children}

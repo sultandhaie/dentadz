@@ -1,5 +1,9 @@
+"use client";
+
 import type { ComponentType, SVGProps } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   CalendarPlus,
@@ -11,6 +15,7 @@ import {
   Eye,
   FileText,
   FolderOpen,
+  Loader2,
   MoreVertical,
   Pencil,
   Phone,
@@ -24,153 +29,40 @@ import {
   Users,
   X,
 } from "lucide-react";
+import { api } from "../../lib/api";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
 type PatientStatus = "Actif" | "En traitement" | "Nouveau" | "En retard";
 
-type Patient = {
-  name: string;
-  id: string;
+interface Patient {
+  id: number;
+  patient_code: string;
+  first_name: string;
+  last_name: string;
   phone: string;
   age: number;
-  lastVisit: string;
-  nextVisit: string;
-  dentist: string;
-  balance: number;
   status: PatientStatus;
-};
+  balance: number;
+  assigned_dentist?: { name: string } | null;
+  appointments?: { appointment_date: string }[];
+}
 
-const stats = [
-  {
-    label: "Total patients",
-    value: "1,248",
-    trend: "+8% vs mois dernier",
-    icon: Users,
-    accent: "from-[#2563EB] to-[#60A5FA]",
-  },
-  {
-    label: "Nouveaux ce mois",
-    value: "32",
-    trend: "+12% vs mois dernier",
-    icon: UserPlus,
-    accent: "from-[#22C55E] to-[#86EFAC]",
-  },
-  {
-    label: "En traitement",
-    value: "186",
-    trend: "+5% vs mois dernier",
-    icon: Stethoscope,
-    accent: "from-[#F59E0B] to-[#FDBA74]",
-  },
-  {
-    label: "Rendez-vous aujourd’hui",
-    value: "18",
-    trend: "+4 vs hier",
-    icon: Calendar,
-    accent: "from-[#7C3AED] to-[#A78BFA]",
-  },
-];
+interface PatientStats {
+  total: number;
+  nouveaux: number;
+  en_traitement: number;
+  actifs: number;
+  en_retard: number;
+  total_balance: number;
+}
 
-const filterChips = [
-  { label: "Tous", active: true },
-  { label: "Actifs", count: "1,012" },
-  { label: "En traitement", count: "186" },
-  { label: "Nouveaux", count: "32" },
-];
-
-const patients: Patient[] = [
-  {
-    name: "Ahmed Benali",
-    id: "#P-000125",
-    phone: "0555 22 33 44",
-    age: 34,
-    lastVisit: "08 Juin 2026",
-    nextVisit: "12 Juin 2026",
-    dentist: "Dr Benali",
-    balance: 25000,
-    status: "En traitement",
-  },
-  {
-    name: "Sara Khaldi",
-    id: "#P-000126",
-    phone: "0661 10 20 30",
-    age: 29,
-    lastVisit: "07 Juin 2026",
-    nextVisit: "10 Juin 2026",
-    dentist: "Dr Amrani",
-    balance: 0,
-    status: "Actif",
-  },
-  {
-    name: "Mohamed Amrani",
-    id: "#P-000127",
-    phone: "0770 55 44 66",
-    age: 42,
-    lastVisit: "06 Juin 2026",
-    nextVisit: "—",
-    dentist: "Dr Amrani",
-    balance: 8000,
-    status: "En traitement",
-  },
-  {
-    name: "Lina Cherif",
-    id: "#P-000128",
-    phone: "0550 33 44 55",
-    age: 26,
-    lastVisit: "05 Juin 2026",
-    nextVisit: "11 Juin 2026",
-    dentist: "Dr Benali",
-    balance: 0,
-    status: "Actif",
-  },
-  {
-    name: "Yacine Saadi",
-    id: "#P-000129",
-    phone: "0777 44 55 66",
-    age: 31,
-    lastVisit: "06 Juin 2026",
-    nextVisit: "—",
-    dentist: "Dr Benali",
-    balance: 5000,
-    status: "En retard",
-  },
-  {
-    name: "Nadia Boudiaf",
-    id: "#P-000130",
-    phone: "0560 12 34 56",
-    age: 38,
-    lastVisit: "04 Juin 2026",
-    nextVisit: "—",
-    dentist: "Dr Amrani",
-    balance: 0,
-    status: "Actif",
-  },
-  {
-    name: "Rachid Hassaine",
-    id: "#P-000131",
-    phone: "0654 56 78 90",
-    age: 45,
-    lastVisit: "03 Juin 2026",
-    nextVisit: "15 Juin 2026",
-    dentist: "Dr Cherif",
-    balance: 12000,
-    status: "En traitement",
-  },
-  {
-    name: "Imane Ferhat",
-    id: "#P-000132",
-    phone: "0541 98 76 54",
-    age: 27,
-    lastVisit: "02 Juin 2026",
-    nextVisit: "09 Juin 2026",
-    dentist: "Dr Cherif",
-    balance: 0,
-    status: "Nouveau",
-  },
-];
-
-const selectedPatient = patients[0];
+interface PaginationMeta {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+}
 
 const panelClass =
   "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] 2xl:p-5";
@@ -199,8 +91,7 @@ function getStatusClass(status: PatientStatus) {
     Nouveau: "bg-blue-50 text-[#2563EB] ring-blue-100",
     "En retard": "bg-red-50 text-[#EF4444] ring-red-100",
   };
-
-  return statusClasses[status];
+  return statusClasses[status] || "bg-slate-50 text-[#64748B] ring-slate-100";
 }
 
 function getBalanceClass(balance: number) {
@@ -295,7 +186,26 @@ function StatCard({
   );
 }
 
-function FiltersCard() {
+function FiltersCard({
+  searchQuery,
+  setSearchQuery,
+  activeFilter,
+  setActiveFilter,
+  stats,
+}: {
+  searchQuery: string;
+  setSearchQuery: (v: string) => void;
+  activeFilter: string;
+  setActiveFilter: (v: string) => void;
+  stats: PatientStats | null;
+}) {
+  const filterChips = [
+    { label: "Tous", active: activeFilter === "Tous" },
+    { label: "Actifs", count: stats?.actifs, active: activeFilter === "Actif" },
+    { label: "En traitement", count: stats?.en_traitement, active: activeFilter === "En traitement" },
+    { label: "Nouveaux", count: stats?.nouveaux, active: activeFilter === "Nouveau" },
+  ];
+
   return (
     <section className={panelClass} aria-label="Recherche et filtres">
       <div className="grid gap-3 xl:grid-cols-[minmax(220px,1fr)_170px_180px_160px_auto] 2xl:grid-cols-[minmax(220px,1fr)_180px_190px_170px_auto]">
@@ -308,6 +218,8 @@ function FiltersCard() {
           <input
             type="search"
             placeholder="Rechercher un patient..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="h-11 w-full rounded-xl border border-[#E2E8F0] bg-white pl-10 pr-4 text-sm font-medium text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#0F766E] focus:ring-4 focus:ring-teal-700/10"
           />
         </label>
@@ -316,6 +228,7 @@ function FiltersCard() {
         <FilterButton label="Toutes les dates" icon={Calendar} />
         <button
           type="button"
+          onClick={() => { setSearchQuery(""); setActiveFilter("Tous"); }}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#0F172A] transition hover:border-[#0F766E]/40 hover:bg-teal-50"
         >
           <RefreshCw className="h-4 w-4 text-[#0F766E]" aria-hidden="true" />
@@ -332,6 +245,12 @@ function FiltersCard() {
           <button
             type="button"
             key={chip.label}
+            onClick={() => {
+              if (chip.label === "Tous") setActiveFilter("Tous");
+              else if (chip.label === "Actifs") setActiveFilter("Actif");
+              else if (chip.label === "En traitement") setActiveFilter("En traitement");
+              else if (chip.label === "Nouveaux") setActiveFilter("Nouveau");
+            }}
             className={cx(
               "inline-flex h-9 items-center justify-center gap-2 rounded-full px-4 text-sm font-bold transition",
               chip.active
@@ -340,7 +259,7 @@ function FiltersCard() {
             )}
           >
             {chip.label}
-            {chip.count ? <span className="text-xs opacity-75">{chip.count}</span> : null}
+            {chip.count != null ? <span className="text-xs opacity-75">{chip.count}</span> : null}
           </button>
         ))}
       </div>
@@ -363,123 +282,12 @@ function FilterButton({ label, icon: Icon }: { label: string; icon?: IconCompone
   );
 }
 
-function PatientsTable() {
-  return (
-    <article className={panelClass}>
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold text-[#0F172A]">Liste des patients</h2>
-          <p className="text-sm text-[#64748B]">Dossiers récents et suivi financier.</p>
-        </div>
-        <button
-          type="button"
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#0F172A] transition hover:border-[#2563EB]/40 hover:bg-blue-50"
-        >
-          <SlidersHorizontal className="h-4 w-4 text-[#2563EB]" aria-hidden="true" />
-          Colonnes
-        </button>
-      </div>
-
-      <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-sm">
-          <thead>
-            <tr className="text-xs font-bold text-[#64748B]">
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">
-                <span className="sr-only">Sélection</span>
-              </th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">Patient</th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">Téléphone</th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">Âge</th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">Dernière visite</th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">Prochain RDV</th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">Dentiste</th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">Solde</th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-3">Statut</th>
-              <th className="border-b border-[#E2E8F0] pb-3">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {patients.map((patient, index) => (
-              <tr
-                key={patient.id}
-                className={cx(
-                  "group transition hover:bg-slate-50",
-                  index === 0 && "bg-teal-50/65",
-                )}
-              >
-                <td
-                  className={cx(
-                    "border-b border-slate-100 py-3 pr-3",
-                    index === 0 && "border-l-4 border-l-[#0F766E] pl-2",
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    defaultChecked={index === 0}
-                    aria-label={`Sélectionner ${patient.name}`}
-                    className="h-4 w-4 rounded border-[#CBD5E1] accent-[#0F766E]"
-                  />
-                </td>
-                <td className="border-b border-slate-100 py-3 pr-3">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={patient.name} className="h-9 w-9 text-xs" />
-                    <div className="min-w-0">
-                      <p className="truncate font-bold text-[#0F172A]">{patient.name}</p>
-                      <p className="text-xs font-semibold text-[#64748B]">ID {patient.id}</p>
-                    </div>
-                  </div>
-                </td>
-                <td className="border-b border-slate-100 py-3 pr-3 font-medium text-[#64748B]">
-                  {patient.phone}
-                </td>
-                <td className="border-b border-slate-100 py-3 pr-3 font-semibold text-[#0F172A]">
-                  {patient.age}
-                </td>
-                <td className="border-b border-slate-100 py-3 pr-3 font-medium text-[#64748B]">
-                  {patient.lastVisit}
-                </td>
-                <td className="border-b border-slate-100 py-3 pr-3 font-medium text-[#64748B]">
-                  {patient.nextVisit}
-                </td>
-                <td className="border-b border-slate-100 py-3 pr-3 font-semibold text-[#0F172A]">
-                  {patient.dentist}
-                </td>
-                <td className={cx("border-b border-slate-100 py-3 pr-3", getBalanceClass(patient.balance))}>
-                  {formatBalance(patient.balance)}
-                </td>
-                <td className="border-b border-slate-100 py-3 pr-3">
-                  <StatusBadge status={patient.status} />
-                </td>
-                <td className="border-b border-slate-100 py-3">
-                  <div className="flex items-center gap-1">
-                    <IconButton label={`Voir ${patient.name}`} icon={Eye} />
-                    <IconButton label={`Modifier ${patient.name}`} icon={Pencil} />
-                    <IconButton label={`Ajouter un rendez-vous pour ${patient.name}`} icon={CalendarPlus} />
-                    <IconButton label={`Plus d’actions pour ${patient.name}`} icon={MoreVertical} />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="grid gap-3 md:hidden">
-        {patients.map((patient) => (
-          <PatientMobileCard key={patient.id} patient={patient} />
-        ))}
-      </div>
-
-      <Pagination />
-    </article>
-  );
-}
-
-function IconButton({ label, icon: Icon }: { label: string; icon: IconComponent }) {
+function IconButton({ label, icon: Icon, onClick }: { label: string; icon: IconComponent; onClick?: () => void }) {
   return (
     <button
       type="button"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition hover:bg-white hover:text-[#0F766E] hover:shadow-sm"
+      onClick={onClick}
+      className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] transition cursor-pointer hover:bg-white hover:text-[#0F766E] hover:shadow-sm"
       aria-label={label}
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
@@ -488,15 +296,17 @@ function IconButton({ label, icon: Icon }: { label: string; icon: IconComponent 
 }
 
 function PatientMobileCard({ patient }: { patient: Patient }) {
+  const router = useRouter();
+  const fullName = `${patient.first_name} ${patient.last_name}`;
   return (
     <article className="rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
       <div className="flex items-start gap-3">
-        <Avatar name={patient.name} className="h-11 w-11" />
+        <Avatar name={fullName} className="h-11 w-11" />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <h3 className="truncate font-bold text-[#0F172A]">{patient.name}</h3>
-              <p className="text-xs font-semibold text-[#64748B]">ID {patient.id}</p>
+              <h3 className="truncate font-bold text-[#0F172A]">{fullName}</h3>
+              <p className="text-xs font-semibold text-[#64748B]">ID {patient.patient_code}</p>
             </div>
             <StatusBadge status={patient.status} />
           </div>
@@ -510,9 +320,6 @@ function PatientMobileCard({ patient }: { patient: Patient }) {
               {patient.age} ans
             </p>
             <p className="font-medium text-[#64748B]">
-              Prochain RDV: <span className="font-bold text-[#0F172A]">{patient.nextVisit}</span>
-            </p>
-            <p className="font-medium text-[#64748B]">
               Solde:{" "}
               <span className={getBalanceClass(patient.balance)}>
                 {formatBalance(patient.balance)}
@@ -522,38 +329,61 @@ function PatientMobileCard({ patient }: { patient: Patient }) {
         </div>
       </div>
       <div className="mt-4 grid grid-cols-4 gap-2">
-        <IconButton label={`Voir ${patient.name}`} icon={Eye} />
-        <IconButton label={`Modifier ${patient.name}`} icon={Pencil} />
-        <IconButton label={`Ajouter un rendez-vous pour ${patient.name}`} icon={CalendarPlus} />
-        <IconButton label={`Plus d’actions pour ${patient.name}`} icon={MoreVertical} />
+        <IconButton label={`Voir ${fullName}`} icon={Eye} onClick={() => router.push(`/patients/${patient.patient_code}`)} />
+        <IconButton label={`Modifier ${fullName}`} icon={Pencil} onClick={() => router.push(`/patients/${patient.patient_code}/modifier`)} />
+        <IconButton label={`Ajouter un rendez-vous pour ${fullName}`} icon={CalendarPlus} onClick={() => router.push(`/rendez-vous/nouveau?patient_id=${patient.patient_code}`)} />
+        <IconButton label={`Plus d'actions pour ${fullName}`} icon={MoreVertical} />
       </div>
     </article>
   );
 }
 
-function Pagination() {
+function Pagination({
+  meta,
+  setPage,
+}: {
+  meta: PaginationMeta;
+  setPage: (p: number) => void;
+}) {
+  const pages: (number | "...")[] = [];
+  for (let i = 1; i <= meta.last_page; i++) {
+    if (i === 1 || i === meta.last_page || (i >= meta.current_page - 1 && i <= meta.current_page + 1)) {
+      pages.push(i);
+    } else if (pages[pages.length - 1] !== "...") {
+      pages.push("...");
+    }
+  }
+
+  const from = (meta.current_page - 1) * meta.per_page + 1;
+  const to = Math.min(meta.current_page * meta.per_page, meta.total);
+
   return (
     <div className="mt-5 grid gap-3 border-t border-[#E2E8F0] pt-4 2xl:grid-cols-[1fr_auto_auto] 2xl:items-center 2xl:justify-between">
       <p className="text-sm font-semibold text-[#64748B] 2xl:whitespace-nowrap">
-        Affichage 1–8 sur 128 patients
+        Affichage {from}–{to} sur {meta.total} patients
       </p>
       <div className="flex max-w-full flex-wrap items-center gap-1.5 sm:gap-2">
         <button
           type="button"
-          className="inline-flex h-9 items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#64748B] transition hover:bg-slate-50 sm:px-3"
+          disabled={meta.current_page <= 1}
+          onClick={() => setPage(meta.current_page - 1)}
+          className="inline-flex h-9 items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#64748B] transition hover:bg-slate-50 sm:px-3 disabled:opacity-40"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           Précédent
         </button>
-        {["1", "2", "3", "…", "16"].map((page) => (
+        {pages.map((page, i) => (
           <button
             type="button"
-            key={page}
+            key={`${page}-${i}`}
+            disabled={page === "..."}
+            onClick={() => typeof page === "number" && setPage(page)}
             className={cx(
               "h-9 min-w-9 rounded-xl px-2.5 text-sm font-bold transition sm:px-3",
-              page === "1"
+              page === meta.current_page
                 ? "bg-[#0F766E] text-white shadow-md shadow-teal-700/20"
                 : "border border-[#E2E8F0] bg-white text-[#64748B] hover:bg-slate-50",
+              page === "..." && "pointer-events-none border-0 bg-transparent text-[#64748B]",
             )}
           >
             {page}
@@ -561,24 +391,24 @@ function Pagination() {
         ))}
         <button
           type="button"
-          className="inline-flex h-9 items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50 sm:px-3"
+          disabled={meta.current_page >= meta.last_page}
+          onClick={() => setPage(meta.current_page + 1)}
+          className="inline-flex h-9 items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50 sm:px-3 disabled:opacity-40"
         >
           Suivant
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
-      <button
-        type="button"
-        className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-sm font-bold text-[#0F172A] transition hover:bg-slate-50"
-      >
-        8 par page
-        <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />
-      </button>
     </div>
   );
 }
 
-function QuickProfilePanel() {
+function QuickProfilePanel({ patient }: { patient: Patient | null }) {
+  const router = useRouter();
+  if (!patient) return null;
+  const fullName = `${patient.first_name} ${patient.last_name}`;
+  const nextAppt = patient.appointments?.[0]?.appointment_date;
+
   return (
     <aside className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] 2xl:p-5 xl:sticky xl:top-5 xl:self-start 2xl:top-6">
       <div className="flex items-start justify-between gap-3">
@@ -588,25 +418,18 @@ function QuickProfilePanel() {
             Dossier sélectionné
           </span>
         </div>
-        <button
-          type="button"
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2E8F0] text-[#64748B] transition hover:bg-slate-50"
-          aria-label="Fermer le profil rapide"
-        >
-          <X className="h-4 w-4" aria-hidden="true" />
-        </button>
       </div>
 
       <div className="mt-4 rounded-2xl bg-gradient-to-br from-teal-50 via-white to-blue-50 p-3.5 2xl:mt-6 2xl:p-4">
         <div className="flex items-center gap-3">
-          <Avatar name={selectedPatient.name} className="h-14 w-14 text-base 2xl:h-16 2xl:w-16 2xl:text-lg" />
+          <Avatar name={fullName} className="h-14 w-14 text-base 2xl:h-16 2xl:w-16 2xl:text-lg" />
           <div>
-            <h3 className="text-lg font-bold text-[#0F172A] 2xl:text-xl">{selectedPatient.name}</h3>
+            <h3 className="text-lg font-bold text-[#0F172A] 2xl:text-xl">{fullName}</h3>
             <p className="text-sm font-semibold text-[#64748B]">
-              ID {selectedPatient.id} · {selectedPatient.age} ans
+              ID {patient.patient_code} · {patient.age} ans
             </p>
             <p className="mt-1 text-sm font-semibold text-[#0F766E]">
-              {selectedPatient.phone}
+              {patient.phone}
             </p>
           </div>
         </div>
@@ -614,24 +437,21 @@ function QuickProfilePanel() {
 
       <dl className="mt-4 space-y-3 2xl:mt-5 2xl:space-y-4">
         <InfoItem
-          label="Prochain RDV"
-          value="12 Juin 2026, 10:00"
-          detail="Consultation"
+          label="Dentiste"
+          value={patient.assigned_dentist?.name || "Non assigné"}
         />
         <InfoItem
           label="Solde impayé"
-          value={formatBalance(selectedPatient.balance)}
-          danger
+          value={formatBalance(patient.balance)}
+          danger={patient.balance > 0}
         />
-        <InfoItem label="Groupe sanguin" value="O+" />
-        <InfoItem label="Allergies" value="Aucune connue" />
-        <InfoItem label="Notes médicales" value="Aucune note" />
+        <InfoItem label="Statut" value={patient.status} />
       </dl>
 
       <div className="mt-4 grid gap-3 2xl:mt-6">
-        <ProfileAction label="Voir dossier" icon={FolderOpen} tone="teal" />
-        <ProfileAction label="Ajouter paiement" icon={CreditCard} tone="blue" />
-        <ProfileAction label="Nouvelle ordonnance" icon={FileText} tone="purple" />
+        <ProfileAction label="Voir dossier" icon={FolderOpen} tone="teal" onClick={() => router.push(`/patients/${patient.patient_code}`)} />
+        <ProfileAction label="Ajouter paiement" icon={CreditCard} tone="blue" onClick={() => router.push(`/paiements/nouveau?patientId=${patient.patient_code}&patientName=${encodeURIComponent(patient.first_name + " " + patient.last_name)}`)} />
+        <ProfileAction label="Nouvelle ordonnance" icon={FileText} tone="purple" onClick={() => router.push(`/ordonnances/nouvelle?patientId=${patient.patient_code}&patientName=${encodeURIComponent(patient.first_name + " " + patient.last_name)}`)} />
       </div>
     </aside>
   );
@@ -640,12 +460,10 @@ function QuickProfilePanel() {
 function InfoItem({
   label,
   value,
-  detail,
   danger = false,
 }: {
   label: string;
   value: string;
-  detail?: string;
   danger?: boolean;
 }) {
   return (
@@ -654,7 +472,6 @@ function InfoItem({
       <dd className={cx("mt-1 text-sm font-bold", danger ? "text-[#EF4444]" : "text-[#0F172A]")}>
         {value}
       </dd>
-      {detail ? <dd className="mt-0.5 text-xs font-semibold text-[#64748B]">{detail}</dd> : null}
     </div>
   );
 }
@@ -663,10 +480,12 @@ function ProfileAction({
   label,
   icon: Icon,
   tone,
+  onClick,
 }: {
   label: string;
   icon: IconComponent;
   tone: "teal" | "blue" | "purple";
+  onClick?: () => void;
 }) {
   const tones = {
     teal: "bg-teal-50 text-[#0F766E] hover:border-[#0F766E]/30",
@@ -677,7 +496,8 @@ function ProfileAction({
   return (
     <button
       type="button"
-      className="flex min-h-14 items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-white p-3 text-left transition hover:-translate-y-0.5 hover:shadow-lg"
+      onClick={onClick}
+      className="flex min-h-14 items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-white p-3 text-left transition cursor-pointer hover:-translate-y-0.5 hover:shadow-lg"
     >
       <span className={cx("flex h-10 w-10 items-center justify-center rounded-xl", tones[tone])}>
         <Icon className="h-5 w-5" aria-hidden="true" />
@@ -688,21 +508,216 @@ function ProfileAction({
 }
 
 export default function PatientsPage() {
+  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [stats, setStats] = useState<PatientStats | null>(null);
+  const [meta, setMeta] = useState<PaginationMeta>({ current_page: 1, last_page: 1, per_page: 15, total: 0 });
+  const [page, setPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [activeFilter, setActiveFilter] = useState("Tous");
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
+
+  const fetchData = async () => {
+    setLoading(true);
+    const token = localStorage.getItem("auth_token") || "";
+    try {
+      const params = new URLSearchParams({ per_page: "15", page: String(page) });
+      if (searchQuery) params.set("search", searchQuery);
+      if (activeFilter !== "Tous") params.set("status", activeFilter);
+
+      const [patientsRes, statsRes] = await Promise.all([
+        api<{ data: Patient[]; meta: PaginationMeta }>(`/patients?${params}`, { token }),
+        api<PatientStats>("/patients/stats", { token }),
+      ]);
+
+      setPatients(patientsRes.data);
+      setMeta(patientsRes.meta);
+      setStats(statsRes);
+      if (patientsRes.data.length > 0 && !selectedPatient) {
+        setSelectedPatient(patientsRes.data[0]);
+      }
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [page, searchQuery, activeFilter]);
+
+  useEffect(() => {
+    if (patients.length > 0 && !selectedPatient) {
+      setSelectedPatient(patients[0]);
+    }
+  }, [patients, selectedPatient]);
+
   return (
     <>
       <PageActions />
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicateurs patients">
-        {stats.map((stat) => (
-          <StatCard key={stat.label} {...stat} />
-        ))}
+        {loading || !stats ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="rounded-2xl border border-[#E2E8F0] bg-white p-4 animate-pulse h-28" />
+          ))
+        ) : (
+          <>
+            <StatCard
+              label="Total patients"
+              value={stats.total.toLocaleString()}
+              trend={`${stats.actifs} actifs`}
+              icon={Users}
+              accent="from-[#2563EB] to-[#60A5FA]"
+            />
+            <StatCard
+              label="Nouveaux ce mois"
+              value={String(stats.nouveaux)}
+              trend={`${stats.total} total`}
+              icon={UserPlus}
+              accent="from-[#22C55E] to-[#86EFAC]"
+            />
+            <StatCard
+              label="En traitement"
+              value={String(stats.en_traitement)}
+              trend={`${stats.en_retard} en retard`}
+              icon={Stethoscope}
+              accent="from-[#F59E0B] to-[#FDBA74]"
+            />
+            <StatCard
+              label="Solde total"
+              value={formatBalance(stats.total_balance)}
+              trend={`${stats.total} patients`}
+              icon={Calendar}
+              accent="from-[#7C3AED] to-[#A78BFA]"
+            />
+          </>
+        )}
       </section>
 
-      <FiltersCard />
+      <FiltersCard
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        activeFilter={activeFilter}
+        setActiveFilter={(v) => { setActiveFilter(v); setPage(1); }}
+        stats={stats}
+      />
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_380px] 2xl:gap-6">
-        <PatientsTable />
-        <QuickProfilePanel />
+        <article className={panelClass}>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-[#0F172A]">Liste des patients</h2>
+              <p className="text-sm text-[#64748B]">Dossiers récents et suivi financier.</p>
+            </div>
+          </div>
+
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left text-sm">
+              <thead>
+                <tr className="text-xs font-bold text-[#64748B]">
+                  <th className="border-b border-[#E2E8F0] pb-3 pr-3">Patient</th>
+                  <th className="border-b border-[#E2E8F0] pb-3 pr-3">Téléphone</th>
+                  <th className="border-b border-[#E2E8F0] pb-3 pr-3">Âge</th>
+                  <th className="border-b border-[#E2E8F0] pb-3 pr-3">Dentiste</th>
+                  <th className="border-b border-[#E2E8F0] pb-3 pr-3">Solde</th>
+                  <th className="border-b border-[#E2E8F0] pb-3 pr-3">Statut</th>
+                  <th className="border-b border-[#E2E8F0] pb-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center">
+                      <Loader2 className="mx-auto h-6 w-6 animate-spin text-[#0F766E]" />
+                    </td>
+                  </tr>
+                ) : patients.length > 0 ? (
+                  patients.map((patient, index) => {
+                    const fullName = `${patient.first_name} ${patient.last_name}`;
+                    const isSelected = selectedPatient?.id === patient.id;
+                    return (
+                      <tr
+                        key={patient.id}
+                        onClick={() => setSelectedPatient(patient)}
+                        className={cx(
+                          "group cursor-pointer transition hover:bg-slate-50",
+                          isSelected && "bg-teal-50/65",
+                        )}
+                      >
+                        <td
+                          className={cx(
+                            "border-b border-slate-100 py-3 pr-3",
+                            isSelected && "border-l-4 border-l-[#0F766E] pl-2",
+                          )}
+                        >
+                          <div className="flex items-center gap-3">
+                            <Avatar name={fullName} className="h-9 w-9 text-xs" />
+                            <div className="min-w-0">
+                              <p className="truncate font-bold text-[#0F172A]">{fullName}</p>
+                              <p className="text-xs font-semibold text-[#64748B]">ID {patient.patient_code}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="border-b border-slate-100 py-3 pr-3 font-medium text-[#64748B]">
+                          {patient.phone}
+                        </td>
+                        <td className="border-b border-slate-100 py-3 pr-3 font-semibold text-[#0F172A]">
+                          {patient.age}
+                        </td>
+                        <td className="border-b border-slate-100 py-3 pr-3 font-semibold text-[#0F172A]">
+                          {patient.assigned_dentist?.name || "—"}
+                        </td>
+                        <td className={cx("border-b border-slate-100 py-3 pr-3", getBalanceClass(patient.balance))}>
+                          {formatBalance(patient.balance)}
+                        </td>
+                        <td className="border-b border-slate-100 py-3 pr-3">
+                          <StatusBadge status={patient.status} />
+                        </td>
+                        <td className="border-b border-slate-100 py-3">
+                          <div className="flex items-center gap-1">
+                            <IconButton label={`Voir ${fullName}`} icon={Eye} onClick={() => router.push(`/patients/${patient.patient_code}`)} />
+                            <IconButton label={`Modifier ${fullName}`} icon={Pencil} onClick={() => router.push(`/patients/${patient.patient_code}/modifier`)} />
+                            <IconButton label={`Ajouter un rendez-vous pour ${fullName}`} icon={CalendarPlus} onClick={() => router.push(`/rendez-vous/nouveau?patient_id=${patient.patient_code}`)} />
+                            <IconButton label={`Plus d'actions pour ${fullName}`} icon={MoreVertical} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={7} className="py-12 text-center text-sm font-semibold text-[#64748B]">
+                      Aucun patient trouvé.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="grid gap-3 md:hidden">
+            {loading ? (
+              <div className="flex justify-center py-12">
+                <Loader2 className="h-6 w-6 animate-spin text-[#0F766E]" />
+              </div>
+            ) : patients.length > 0 ? (
+              patients.map((patient) => (
+                <PatientMobileCard key={patient.id} patient={patient} />
+              ))
+            ) : (
+              <div className="py-12 text-center text-sm font-semibold text-[#64748B]">
+                Aucun patient trouvé.
+              </div>
+            )}
+          </div>
+
+          {!loading && meta.total > 0 && <Pagination meta={meta} setPage={setPage} />}
+        </article>
+
+        <QuickProfilePanel patient={selectedPatient} />
       </section>
     </>
   );

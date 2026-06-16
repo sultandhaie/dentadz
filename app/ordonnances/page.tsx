@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Building2,
@@ -27,28 +27,37 @@ import {
   X,
 } from "lucide-react";
 
+import { api } from "../../lib/api";
+
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 type PrescriptionStatus = "Délivrée" | "En attente" | "Annulée";
+
+type ApiPrescription = {
+  id: string;
+  prescription_code: string;
+  patient_id: string;
+  dentist_id: string;
+  medications: string;
+  instructions: string;
+  prescribed_date: string;
+  validity_date: string;
+  status: string;
+  patient: { first_name: string; last_name: string; phone: string };
+  dentist: { name: string };
+};
 
 type Prescription = {
   id: string;
   code: string;
   patient: string;
   phone: string;
-  age: number;
   date: string;
   treatment: string;
   dentist: string;
   status: PrescriptionStatus;
   medicationCount: number;
-};
-
-type Medication = {
-  id: string;
-  name: string;
-  type: string;
   instructions: string;
-  quantity: number;
+  medications: string;
 };
 
 type Stat = {
@@ -59,147 +68,27 @@ type Stat = {
   accent: string;
 };
 
-const stats: Stat[] = [
-  {
-    title: "Ordonnances ce mois",
-    value: "75",
-    label: "+18% vs mois dernier",
-    icon: ClipboardList,
-    accent: "from-[#0F766E] to-[#2DD4BF]",
-  },
-  {
-    title: "Médicaments prescrits",
-    value: "142",
-    label: "Ce mois",
-    icon: Pill,
-    accent: "from-[#2563EB] to-[#60A5FA]",
-  },
-  {
-    title: "En attente",
-    value: "12",
-    label: "À délivrer",
-    icon: Clock3,
-    accent: "from-[#F59E0B] to-[#FDBA74]",
-  },
-  {
-    title: "Délivrées",
-    value: "63",
-    label: "84% du total",
-    icon: CheckCircle2,
-    accent: "from-[#22C55E] to-[#86EFAC]",
-  },
-];
+type MedicationItem = {
+  id: string;
+  name: string;
+  type: string;
+  instructions: string;
+  quantity: number;
+};
 
-const prescriptions: Prescription[] = [
-  {
-    id: "RX-001",
-    code: "ORD-2026-001",
-    patient: "Sara Khaldi",
-    phone: "0661 10 20 30",
-    age: 32,
-    date: "10 Juin 2026",
-    treatment: "Extraction dentaires",
-    dentist: "Dr Benali",
-    status: "Délivrée",
-    medicationCount: 3,
-  },
-  {
-    id: "RX-002",
-    code: "ORD-2026-002",
-    patient: "Ahmed Benali",
-    phone: "0770 20 30 40",
-    age: 41,
-    date: "09 Juin 2026",
-    treatment: "Traitement canalaire",
-    dentist: "Dr Benali",
-    status: "En attente",
-    medicationCount: 4,
-  },
-  {
-    id: "RX-003",
-    code: "ORD-2026-003",
-    patient: "Lina Cherif",
-    phone: "0555 66 77 88",
-    age: 19,
-    date: "09 Juin 2026",
-    treatment: "Orthodontie",
-    dentist: "Dr Cherif",
-    status: "Délivrée",
-    medicationCount: 2,
-  },
-  {
-    id: "RX-004",
-    code: "ORD-2026-004",
-    patient: "Yacine Saadi",
-    phone: "0777 44 55 66",
-    age: 36,
-    date: "08 Juin 2026",
-    treatment: "Détartrage",
-    dentist: "Dr Cherif",
-    status: "Délivrée",
-    medicationCount: 2,
-  },
-  {
-    id: "RX-005",
-    code: "ORD-2026-005",
-    patient: "Nadia Boudiaf",
-    phone: "0560 12 34 56",
-    age: 28,
-    date: "07 Juin 2026",
-    treatment: "Blanchiment",
-    dentist: "Dr Benali",
-    status: "Annulée",
-    medicationCount: 1,
-  },
-  {
-    id: "RX-006",
-    code: "ORD-2026-006",
-    patient: "Mohamed Amrani",
-    phone: "0550 33 44 55",
-    age: 47,
-    date: "06 Juin 2026",
-    treatment: "Couronne céramique",
-    dentist: "Dr Cherif",
-    status: "En attente",
-    medicationCount: 3,
-  },
-  {
-    id: "RX-007",
-    code: "ORD-2026-007",
-    patient: "Rachid Hassaine",
-    phone: "0799 11 22 33",
-    age: 52,
-    date: "05 Juin 2026",
-    treatment: "Implant dentaire",
-    dentist: "Dr Benali",
-    status: "Délivrée",
-    medicationCount: 5,
-  },
-];
+type ApiMeta = {
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+};
 
-const medications: Medication[] = [
-  {
-    id: "MED-001",
-    name: "Amoxicilline 500mg",
-    type: "Capsule",
-    instructions: "1 capsule toutes les 8h pendant 7 jours",
-    quantity: 21,
-  },
-  {
-    id: "MED-002",
-    name: "Ibuprofène 400mg",
-    type: "Comprimé",
-    instructions: "1 comprimé toutes les 12h après repas",
-    quantity: 14,
-  },
-  {
-    id: "MED-003",
-    name: "Chlorhexidine 0.12%",
-    type: "Bain de bouche",
-    instructions: "15 ml, 2 fois par jour après brossage",
-    quantity: 1,
-  },
-];
+const mapStatus = (status: string): PrescriptionStatus => {
+  if (status === "Active") return "Délivrée";
+  if (status === "Expirée") return "Annulée";
+  if (status === "Annulée") return "Annulée";
+  return "En attente";
+};
 
 const mostPrescribedMedications = [
   { name: "Amoxicilline 500mg", count: 28, percent: "19.7%", color: "bg-[#0F766E]" },
@@ -381,7 +270,7 @@ function FiltersSection() {
             className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
           >
             <Calendar className="h-4 w-4 text-[#0F766E]" aria-hidden="true" />
-            Aujourd’hui
+            Aujourd'hui
           </button>
         </div>
       </div>
@@ -390,9 +279,11 @@ function FiltersSection() {
 }
 
 function OrdonnancesTable({
+  prescriptions,
   selectedPrescription,
   onSelectPrescription,
 }: {
+  prescriptions: Prescription[];
   selectedPrescription: Prescription;
   onSelectPrescription: (prescription: Prescription) => void;
 }) {
@@ -449,7 +340,7 @@ function OrdonnancesTable({
                     <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#64748B] transition hover:bg-slate-50 hover:text-[#0F766E]" aria-label={`Imprimer ${prescription.code}`}>
                       <Printer className="h-4 w-4" aria-hidden="true" />
                     </button>
-                    <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#64748B] transition hover:bg-slate-50 hover:text-[#0F766E]" aria-label={`Plus d’actions ${prescription.code}`}>
+                    <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#64748B] transition hover:bg-slate-50 hover:text-[#0F766E]" aria-label={`Plus d'actions ${prescription.code}`}>
                       <MoreVertical className="h-4 w-4" aria-hidden="true" />
                     </button>
                   </div>
@@ -496,7 +387,7 @@ function OrdonnanceMobileCard({
       <div className="mt-3 grid grid-cols-[1fr_1fr_40px] gap-2">
         <button type="button" className="h-10 rounded-xl border border-slate-200 bg-white text-sm font-bold text-[#0F172A]">Voir</button>
         <button type="button" className="h-10 rounded-xl bg-[#0F766E] text-sm font-bold text-white">Imprimer</button>
-        <button type="button" className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#64748B]" aria-label={`Plus d’actions ${prescription.code}`}>
+        <button type="button" className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-[#64748B]" aria-label={`Plus d'actions ${prescription.code}`}>
           <MoreVertical className="h-4 w-4" aria-hidden="true" />
         </button>
       </div>
@@ -504,47 +395,72 @@ function OrdonnanceMobileCard({
   );
 }
 
-function Pagination() {
-  const pages: Array<
-    | { type: "previous"; icon: typeof ChevronLeft }
-    | { type: "next"; icon: typeof ChevronRight }
-    | { type: "page"; label: string; active?: boolean }
-  > = [
-    { type: "previous", icon: ChevronLeft },
-    { type: "page", label: "1", active: true },
-    { type: "page", label: "2" },
-    { type: "page", label: "3" },
-    { type: "page", label: "..." },
-    { type: "page", label: "8" },
-    { type: "next", icon: ChevronRight },
-  ];
+function Pagination({
+  meta,
+  currentPage,
+  onNavigate,
+}: {
+  meta: ApiMeta;
+  currentPage: number;
+  onNavigate: (page: number) => void;
+}) {
+  const pages: number[] = [];
+  for (let i = 1; i <= meta.last_page; i++) {
+    pages.push(i);
+  }
 
   return (
     <footer className="grid gap-3 border-t border-[#E2E8F0] px-4 py-4 2xl:grid-cols-[1fr_auto_auto] 2xl:items-center 2xl:justify-between">
-      <p className="text-sm font-semibold text-[#64748B] 2xl:whitespace-nowrap">Affichage 1 - 7 sur 75 ordonnances</p>
+      <p className="text-sm font-semibold text-[#64748B] 2xl:whitespace-nowrap">
+        Affichage {meta.per_page * (meta.current_page - 1) + 1} - {Math.min(meta.per_page * meta.current_page, meta.total)} sur {meta.total} ordonnances
+      </p>
       <div className="flex max-w-full flex-wrap items-center gap-1.5 sm:gap-2">
-        {pages.map((item, index) => {
-          const active = item.type === "page" && item.active;
-
-          return (
-            <button
-              key={`${item.type}-${index}`}
-              type="button"
-              className={cx(
-                "inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-bold transition",
-                active
-                  ? "border-[#0F766E] bg-[#0F766E] text-white"
-                  : "border-slate-200 bg-white text-[#64748B] hover:bg-slate-50",
-              )}
-              aria-label={item.type !== "page" ? (item.type === "previous" ? "Page précédente" : "Page suivante") : undefined}
-            >
-              {item.type === "page" ? item.label : <item.icon className="h-4 w-4" aria-hidden="true" />}
-            </button>
-          );
-        })}
+        <button
+          type="button"
+          disabled={currentPage <= 1}
+          onClick={() => onNavigate(currentPage - 1)}
+          className={cx(
+            "inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-bold transition",
+            currentPage <= 1
+              ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
+              : "border-slate-200 bg-white text-[#64748B] hover:bg-slate-50",
+          )}
+          aria-label="Page précédente"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+        </button>
+        {pages.map((page) => (
+          <button
+            key={page}
+            type="button"
+            onClick={() => onNavigate(page)}
+            className={cx(
+              "inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-bold transition",
+              page === currentPage
+                ? "border-[#0F766E] bg-[#0F766E] text-white"
+                : "border-slate-200 bg-white text-[#64748B] hover:bg-slate-50",
+            )}
+          >
+            {page}
+          </button>
+        ))}
+        <button
+          type="button"
+          disabled={currentPage >= meta.last_page}
+          onClick={() => onNavigate(currentPage + 1)}
+          className={cx(
+            "inline-flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-bold transition",
+            currentPage >= meta.last_page
+              ? "cursor-not-allowed border-slate-100 bg-slate-50 text-slate-300"
+              : "border-slate-200 bg-white text-[#64748B] hover:bg-slate-50",
+          )}
+          aria-label="Page suivante"
+        >
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </button>
       </div>
       <button type="button" className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-bold text-[#0F172A]">
-        10 par page
+        {meta.per_page} par page
         <ChevronDown className="h-4 w-4 text-[#64748B]" aria-hidden="true" />
       </button>
     </footer>
@@ -552,16 +468,24 @@ function Pagination() {
 }
 
 function OrdonnancesCard({
+  prescriptions,
   selectedPrescription,
   onSelectPrescription,
+  meta,
+  currentPage,
+  onNavigate,
 }: {
+  prescriptions: Prescription[];
   selectedPrescription: Prescription;
   onSelectPrescription: (prescription: Prescription) => void;
+  meta: ApiMeta;
+  currentPage: number;
+  onNavigate: (page: number) => void;
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
       <FiltersSection />
-      <OrdonnancesTable selectedPrescription={selectedPrescription} onSelectPrescription={onSelectPrescription} />
+      <OrdonnancesTable prescriptions={prescriptions} selectedPrescription={selectedPrescription} onSelectPrescription={onSelectPrescription} />
       <div className="grid gap-3 p-4 md:hidden">
         {prescriptions.map((prescription) => (
           <OrdonnanceMobileCard
@@ -572,7 +496,7 @@ function OrdonnancesCard({
           />
         ))}
       </div>
-      <Pagination />
+      <Pagination meta={meta} currentPage={currentPage} onNavigate={onNavigate} />
     </article>
   );
 }
@@ -601,7 +525,27 @@ function InfoRow({
   );
 }
 
-function MedicationList() {
+function MedicationList({ medications }: { medications: string }) {
+  const items = medications
+    ? medications
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : [];
+
+  if (items.length === 0) {
+    return (
+      <section className="mt-5">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-base font-bold text-[#0F172A]">Médicaments prescrits</h3>
+        </div>
+        <div className="mt-3 rounded-2xl border border-[#E2E8F0] bg-white p-4 text-center text-sm font-semibold text-[#64748B]">
+          Aucun médicament prescrit
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="mt-5">
       <div className="flex items-center justify-between gap-3">
@@ -609,17 +553,14 @@ function MedicationList() {
         <span className="text-xs font-bold uppercase text-[#64748B]">Qté</span>
       </div>
       <div className="mt-3 divide-y divide-[#E2E8F0] rounded-2xl border border-[#E2E8F0] bg-white">
-        {medications.map((medication, index) => (
-          <div key={medication.id} className="flex items-start gap-3 p-3">
+        {items.map((item, index) => (
+          <div key={index} className="flex items-start gap-3 p-3">
             <span className={cx("flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-sm font-bold", getMedicationBadgeClasses(index))}>
               {index + 1}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="font-bold text-[#0F172A]">{medication.name}</p>
-              <p className="text-xs font-semibold text-[#64748B]">{medication.type}</p>
-              <p className="mt-1 text-xs font-medium leading-5 text-[#64748B]">{medication.instructions}</p>
+              <p className="font-bold text-[#0F172A]">{item}</p>
             </div>
-            <p className="text-sm font-bold text-[#0F172A]">{medication.quantity}</p>
           </div>
         ))}
       </div>
@@ -632,7 +573,7 @@ function OrdonnanceDetailsPanel({ prescription }: { prescription: Prescription }
     <aside className={cx(panelClass, "xl:sticky xl:top-4 xl:self-start")}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-[#64748B]">Détails de l’ordonnance</p>
+          <p className="text-sm font-bold text-[#64748B]">Détails de l'ordonnance</p>
           <h2 className="mt-2 text-xl font-bold text-[#0F172A]">{prescription.code}</h2>
         </div>
         <button type="button" className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] transition hover:bg-slate-50" aria-label="Fermer">
@@ -647,7 +588,7 @@ function OrdonnanceDetailsPanel({ prescription }: { prescription: Prescription }
         <Avatar name={prescription.patient} />
         <div className="min-w-0">
           <p className="truncate font-bold text-[#0F172A]">{prescription.patient}</p>
-          <p className="truncate text-sm font-semibold text-[#64748B]">{prescription.age} ans • {prescription.phone}</p>
+          <p className="truncate text-sm font-semibold text-[#64748B]">{prescription.phone}</p>
         </div>
       </div>
 
@@ -656,23 +597,22 @@ function OrdonnanceDetailsPanel({ prescription }: { prescription: Prescription }
         <InfoRow icon={Stethoscope} label="Traitement" value={prescription.treatment} />
         <InfoRow icon={UserRound} label="Dentiste" value={prescription.dentist} />
         <InfoRow icon={CheckCircle2} label="Statut" value={prescription.status} valueClassName="text-green-700" />
-        <InfoRow icon={Clock} label="Délivrée le" value="10 Juin 2026 à 15:30" />
         <InfoRow icon={Building2} label="Pharmacie" value="Pharmacie Benakli" />
       </div>
 
-      <MedicationList />
+      <MedicationList medications={prescription.medications} />
 
       <section className="mt-5 rounded-2xl border border-[#E2E8F0] bg-slate-50/70 p-4">
         <h3 className="text-base font-bold text-[#0F172A]">Instructions générales</h3>
         <p className="mt-2 text-sm font-medium leading-6 text-[#64748B]">
-          Éviter les aliments durs pendant 48h. Consulter en cas de douleur ou gonflement.
+          {prescription.instructions || "Éviter les aliments durs pendant 48h. Consulter en cas de douleur ou gonflement."}
         </p>
       </section>
 
       <div className="mt-5 grid gap-2">
         <button type="button" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition hover:bg-[#115E59]">
           <Printer className="h-4 w-4" aria-hidden="true" />
-          Imprimer l’ordonnance
+          Imprimer l'ordonnance
         </button>
         <button type="button" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#E2E8F0] bg-white text-sm font-bold text-[#0F172A] transition hover:bg-slate-50">
           <Download className="h-4 w-4 text-[#2563EB]" aria-hidden="true" />
@@ -680,7 +620,7 @@ function OrdonnanceDetailsPanel({ prescription }: { prescription: Prescription }
         </button>
         <button type="button" className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-white text-sm font-bold text-[#EF4444] transition hover:bg-red-50">
           <Trash2 className="h-4 w-4" aria-hidden="true" />
-          Annuler l’ordonnance
+          Annuler l'ordonnance
         </button>
       </div>
     </aside>
@@ -737,10 +677,186 @@ function PrescriptionStatusCard() {
   );
 }
 
-export default function OrdonnancesPage() {
-  const [selectedPrescription, setSelectedPrescription] = useState<Prescription>(
-    prescriptions.find((prescription) => prescription.code === "ORD-2026-001") ?? prescriptions[0],
+function LoadingSpinner() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#0F766E]" />
+        <p className="text-sm font-semibold text-[#64748B]">Chargement des ordonnances...</p>
+      </div>
+    </div>
   );
+}
+
+export default function OrdonnancesPage() {
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
+  const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<Stat[]>([
+    {
+      title: "Ordonnances ce mois",
+      value: "0",
+      label: "Total",
+      icon: ClipboardList,
+      accent: "from-[#0F766E] to-[#2DD4BF]",
+    },
+    {
+      title: "Médicaments prescrits",
+      value: "0",
+      label: "Ce mois",
+      icon: Pill,
+      accent: "from-[#2563EB] to-[#60A5FA]",
+    },
+    {
+      title: "En attente",
+      value: "0",
+      label: "À délivrer",
+      icon: Clock3,
+      accent: "from-[#F59E0B] to-[#FDBA74]",
+    },
+    {
+      title: "Délivrées",
+      value: "0",
+      label: "0% du total",
+      icon: CheckCircle2,
+      accent: "from-[#22C55E] to-[#86EFAC]",
+    },
+  ]);
+  const [meta, setMeta] = useState<ApiMeta>({
+    current_page: 1,
+    last_page: 1,
+    per_page: 10,
+    total: 0,
+  });
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    fetchPrescriptions(currentPage);
+  }, [currentPage]);
+
+  async function fetchPrescriptions(page: number) {
+    setLoading(true);
+    try {
+      const response = await api<{ data: ApiPrescription[]; meta: ApiMeta }>(
+        `/prescriptions?page=${page}`,
+      );
+
+      const mapped: Prescription[] = response.data.map((item) => ({
+        id: String(item.id),
+        code: item.prescription_code,
+        patient: `${item.patient.first_name} ${item.patient.last_name}`,
+        phone: item.patient.phone,
+        date: item.prescribed_date,
+        treatment: item.instructions || "",
+        dentist: item.dentist.name,
+        status: mapStatus(item.status),
+        medicationCount: item.medications
+          ? item.medications
+              .split("\n")
+              .map((l) => l.trim())
+              .filter(Boolean).length
+          : 0,
+        instructions: item.instructions || "",
+        medications: item.medications || "",
+      }));
+
+      setPrescriptions(mapped);
+      setMeta(response.meta);
+
+      if (mapped.length > 0 && !selectedPrescription) {
+        setSelectedPrescription(mapped[0]);
+      }
+
+      const allResponse = await api<{ data: ApiPrescription[]; meta: ApiMeta }>(
+        `/prescriptions?page=1`,
+      );
+      const allTotal = allResponse.meta.total;
+      const allData = allResponse.data;
+
+      const totalMeds = allData.reduce((sum, item) => {
+        const count = item.medications
+          ? item.medications
+              .split("\n")
+              .map((l) => l.trim())
+              .filter(Boolean).length
+          : 0;
+        return sum + count;
+      }, 0);
+
+      let pendingCount = 0;
+      let deliveredCount = 0;
+      for (const item of allData) {
+        const status = mapStatus(item.status);
+        if (status === "En attente") pendingCount++;
+        if (status === "Délivrée") deliveredCount++;
+      }
+
+      const deliveredPercent = allTotal > 0 ? Math.round((deliveredCount / allTotal) * 100) : 0;
+
+      setStats([
+        {
+          title: "Ordonnances ce mois",
+          value: String(allTotal),
+          label: "+18% vs mois dernier",
+          icon: ClipboardList,
+          accent: "from-[#0F766E] to-[#2DD4BF]",
+        },
+        {
+          title: "Médicaments prescrits",
+          value: String(totalMeds),
+          label: "Ce mois",
+          icon: Pill,
+          accent: "from-[#2563EB] to-[#60A5FA]",
+        },
+        {
+          title: "En attente",
+          value: String(pendingCount),
+          label: "À délivrer",
+          icon: Clock3,
+          accent: "from-[#F59E0B] to-[#FDBA74]",
+        },
+        {
+          title: "Délivrées",
+          value: String(deliveredCount),
+          label: `${deliveredPercent}% du total`,
+          icon: CheckCircle2,
+          accent: "from-[#22C55E] to-[#86EFAC]",
+        },
+      ]);
+    } catch (err) {
+      console.error("Failed to fetch prescriptions:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleNavigate(page: number) {
+    setCurrentPage(page);
+  }
+
+  if (loading && prescriptions.length === 0) {
+    return (
+      <section className="space-y-5">
+        <div className="flex justify-end">
+          <PageActions />
+        </div>
+        <LoadingSpinner />
+      </section>
+    );
+  }
+
+  if (!selectedPrescription) {
+    return (
+      <section className="space-y-5">
+        <div className="flex justify-end">
+          <PageActions />
+        </div>
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <p className="text-sm font-semibold text-[#64748B]">Aucune ordonnance trouvée.</p>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="space-y-5">
@@ -757,8 +873,12 @@ export default function OrdonnancesPage() {
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className="min-w-0 space-y-5">
           <OrdonnancesCard
+            prescriptions={prescriptions}
             selectedPrescription={selectedPrescription}
             onSelectPrescription={setSelectedPrescription}
+            meta={meta}
+            currentPage={currentPage}
+            onNavigate={handleNavigate}
           />
           <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
             <MedicationAnalyticsCard />
