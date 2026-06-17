@@ -59,6 +59,10 @@ function getStatusStyle(status: string) {
   return map[status] || "bg-slate-100 text-[#64748B] ring-slate-200";
 }
 
+function normalizeNewlines(text: string) {
+  return (text || "").replace(/\\n/g, "\n");
+}
+
 export default function OrdonnanceDetailPage() {
   const params = useParams();
   const id = params?.id as string;
@@ -106,20 +110,27 @@ export default function OrdonnanceDetailPage() {
     );
   }
 
-  const medications = (rx.medications || "").split("\n").filter((l: string) => l.trim());
+  const medications = normalizeNewlines(rx.medications || "").split("\n").filter((l: string) => l.trim());
   const patientName = `${rx.patient?.first_name || ""} ${rx.patient?.last_name || ""}`.trim();
 
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <Link
-            href="/ordonnances"
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                window.history.back();
+              } else {
+                window.location.href = "/ordonnances";
+              }
+            }}
             className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] transition hover:bg-slate-50"
-            aria-label="Retour à la liste des ordonnances"
+            aria-label="Retour à la page précédente"
           >
             <ArrowLeft className="h-5 w-5" />
-          </Link>
+          </button>
           <div>
             <nav className="text-xs font-semibold text-[#64748B]" aria-label="Breadcrumb">
               <Link href="/dashboard" className="hover:text-[#0F766E]">Dashboard</Link>
@@ -192,7 +203,7 @@ export default function OrdonnanceDetailPage() {
                 <h3 className="text-base font-bold text-[#0F172A]">Instructions</h3>
               </div>
               <div className="rounded-xl border border-[#E2E8F0] bg-slate-50/70 p-4">
-                <p className="whitespace-pre-line text-sm font-medium text-[#0F172A]">{rx.instructions}</p>
+                <p className="whitespace-pre-line text-sm font-medium text-[#0F172A]">{normalizeNewlines(rx.instructions)}</p>
               </div>
             </div>
           )}

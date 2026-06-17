@@ -13,7 +13,7 @@ import {
 import { api } from "../../lib/api";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
-type AppointmentStatus = "Confirmé" | "En attente" | "En consultation" | "Terminé" | "Annulé" | "Absent" | "Reporté";
+type AppointmentStatus = "Confirmé" | "En attente" | "Arrivé" | "En consultation" | "Terminé" | "Annulé" | "Absent" | "Reporté";
 
 type Stat = { label: string; value: string; trend: string; icon: IconComponent; accent: string };
 
@@ -45,7 +45,7 @@ type Appointment = {
   treatment: string;
   dentist: string;
   status: AppointmentStatus;
-  color: "blue" | "orange" | "purple" | "green" | "red";
+  color: "blue" | "orange" | "teal" | "purple" | "green" | "red";
   phone: string;
   room: string;
   notes: string;
@@ -77,6 +77,7 @@ const dayKeys = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"] as const;
 const statusColorMap: Record<AppointmentStatus, Appointment["color"]> = {
   Confirmé: "blue",
   "En attente": "orange",
+  Arrivé: "teal",
   "En consultation": "purple",
   Terminé: "green",
   Annulé: "red",
@@ -98,6 +99,7 @@ function getStatusClasses(status: AppointmentStatus) {
   const classes: Record<AppointmentStatus, string> = {
     Confirmé: "bg-blue-50 text-blue-700 border-blue-200",
     "En attente": "bg-orange-50 text-orange-700 border-orange-200",
+    Arrivé: "bg-teal-50 text-teal-700 border-teal-200",
     "En consultation": "bg-purple-50 text-purple-700 border-purple-200",
     Terminé: "bg-green-50 text-green-700 border-green-200",
     Annulé: "bg-red-50 text-red-700 border-red-200",
@@ -111,6 +113,7 @@ function getAppointmentCardClasses(color: Appointment["color"]) {
   const classes = {
     blue: "border-blue-200 bg-blue-50 text-blue-800",
     orange: "border-orange-200 bg-orange-50 text-orange-800",
+    teal: "border-teal-200 bg-teal-50 text-teal-800",
     purple: "border-purple-200 bg-purple-50 text-purple-800",
     green: "border-green-200 bg-green-50 text-green-800",
     red: "border-red-200 bg-red-50 text-red-800",
@@ -508,10 +511,16 @@ function AppointmentDetails({ appointment, router, onUpdateStatus }: { appointme
         {(appointment.status === "En attente" || appointment.status === "Annulé" || appointment.status === "Absent" || appointment.status === "Reporté") && (
           <ActionButton label="Confirmer" icon={Check} tone="teal" onClick={() => handleUpdate("Confirmé")} />
         )}
-        {(appointment.status === "Confirmé" || appointment.status === "En consultation") && (
+        {appointment.status === "Confirmé" && (
+          <ActionButton label="Arrivé" icon={CheckCircle2} tone="teal" onClick={() => handleUpdate("Arrivé")} />
+        )}
+        {appointment.status === "Arrivé" && (
+          <ActionButton label="Commencer" icon={CheckCircle2} tone="blue" onClick={() => handleUpdate("En consultation")} />
+        )}
+        {appointment.status === "En consultation" && (
           <ActionButton label="Terminer" icon={CheckCircle2} tone="blue" onClick={() => handleUpdate("Terminé")} />
         )}
-        {(appointment.status === "En attente" || appointment.status === "Confirmé" || appointment.status === "En consultation" || appointment.status === "Reporté") && (
+        {(appointment.status === "En attente" || appointment.status === "Confirmé" || appointment.status === "Arrivé" || appointment.status === "En consultation" || appointment.status === "Reporté") && (
           <ActionButton label="Annuler" icon={X} tone="red" onClick={() => handleUpdate("Annulé")} />
         )}
         <ActionButton label="Voir dossier patient" icon={User} tone="slate" onClick={() => router.push(`/patients/${appointment.patientCode}`)} />
@@ -610,10 +619,16 @@ function PlanningTable({ selectedDate, planningRows, appointments, onSelectAppoi
                         {(row.status === "En attente" || row.status === "Annulé" || row.status === "Absent" || row.status === "Reporté") && (
                           <IconButton label={`Confirmer ${row.patient}`} icon={CheckCircle} onClick={() => onUpdateStatus(appointments[index], "Confirmé")} />
                         )}
-                        {(row.status === "Confirmé" || row.status === "En consultation") && (
+                        {row.status === "Confirmé" && (
+                          <IconButton label={`Arrivé ${row.patient}`} icon={CheckCircle2} onClick={() => onUpdateStatus(appointments[index], "Arrivé")} />
+                        )}
+                        {row.status === "Arrivé" && (
+                          <IconButton label={`Commencer ${row.patient}`} icon={CheckCircle2} onClick={() => onUpdateStatus(appointments[index], "En consultation")} />
+                        )}
+                        {row.status === "En consultation" && (
                           <IconButton label={`Terminer ${row.patient}`} icon={CheckCircle2} onClick={() => onUpdateStatus(appointments[index], "Terminé")} />
                         )}
-                        {(row.status === "En attente" || row.status === "Confirmé" || row.status === "En consultation" || row.status === "Reporté") && (
+                        {(row.status === "En attente" || row.status === "Confirmé" || row.status === "Arrivé" || row.status === "En consultation" || row.status === "Reporté") && (
                           <IconButton label={`Annuler ${row.patient}`} icon={X} onClick={() => onUpdateStatus(appointments[index], "Annulé")} />
                         )}
                       </div>
@@ -649,10 +664,16 @@ function MobileAppointmentCards({ planningRows, appointments, onSelectAppointmen
             {(row.status === "En attente" || row.status === "Annulé" || row.status === "Absent" || row.status === "Reporté") && (
               <button type="button" onClick={() => onUpdateStatus(appointments[index], "Confirmé")} className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white"><CheckCircle className="h-4 w-4" />Confirmer</button>
             )}
-            {(row.status === "Confirmé" || row.status === "En consultation") && (
+            {row.status === "Confirmé" && (
+              <button type="button" onClick={() => onUpdateStatus(appointments[index], "Arrivé")} className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#0F766E] text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" />Arrivé</button>
+            )}
+            {row.status === "Arrivé" && (
+              <button type="button" onClick={() => onUpdateStatus(appointments[index], "En consultation")} className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#2563EB] text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" />Commencer</button>
+            )}
+            {row.status === "En consultation" && (
               <button type="button" onClick={() => onUpdateStatus(appointments[index], "Terminé")} className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#2563EB] text-sm font-bold text-white"><CheckCircle2 className="h-4 w-4" />Terminer</button>
             )}
-            {(row.status === "En attente" || row.status === "Confirmé" || row.status === "En consultation" || row.status === "Reporté") && (
+            {(row.status === "En attente" || row.status === "Confirmé" || row.status === "Arrivé" || row.status === "En consultation" || row.status === "Reporté") && (
               <button type="button" onClick={() => onUpdateStatus(appointments[index], "Annulé")} className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 text-sm font-bold text-red-600"><X className="h-4 w-4" />Annuler</button>
             )}
           </div>

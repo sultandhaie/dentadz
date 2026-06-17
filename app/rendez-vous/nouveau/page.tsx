@@ -25,6 +25,7 @@ export default function NouveauRendezVousPage() {
   const [showPatientResults, setShowPatientResults] = useState(false);
   const [serverError, setServerError] = useState("");
   const [showCustomTime, setShowCustomTime] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -35,7 +36,7 @@ export default function NouveauRendezVousPage() {
       setPatients(p?.data ?? (Array.isArray(p) ? p : []));
       setDentists(Array.isArray(d) ? d : []);
       setTreatments(t?.data ?? (Array.isArray(t) ? t : []));
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -129,6 +130,14 @@ export default function NouveauRendezVousPage() {
   };
 
   const selectedPatient = patients.find((p) => String(p.id) === formData.patientId);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0F766E] border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -262,7 +271,7 @@ export default function NouveauRendezVousPage() {
                 <div>
                   <label htmlFor="statut" className="block text-xs font-bold uppercase tracking-wide text-[#64748B] mb-1.5">Statut initial</label>
                   <select id="statut" name="statut" value={formData.statut} onChange={handleChange} className="h-11 w-full rounded-xl border border-[#E2E8F0] px-3 text-sm font-bold text-[#0F172A] outline-none transition focus:border-[#2563EB]">
-                    <option value="Confirmé">Confirmé</option><option value="En attente">En attente (Rappel requis)</option>
+                    <option value="Confirmé">Confirmé</option><option value="En attente">En attente (Rappel requis)</option><option value="Arrivé">Arrivé</option>
                   </select>
                 </div>
               </div>

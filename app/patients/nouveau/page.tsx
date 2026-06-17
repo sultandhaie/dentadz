@@ -47,12 +47,14 @@ export default function NouveauPatientPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const token = localStorage.getItem("auth_token") || "";
     api<Dentist[]>("/dentists", { token })
       .then(setDentists)
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, []);
 
   const handleChange = (
@@ -150,6 +152,14 @@ export default function NouveauPatientPage() {
     setServerError("");
     setShowSuccess(false);
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#0F766E] border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

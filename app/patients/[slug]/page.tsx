@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import {
   AlertCircle,
   ArrowLeft,
@@ -75,6 +75,10 @@ function formatBalance(balance: number) {
 function formatDate(dateStr: string) {
   if (!dateStr) return "—";
   return dateStr.split("T")[0];
+}
+
+function normalizeNewlines(text: string) {
+  return (text || "").replace(/\\n/g, "\n");
 }
 
 function getStatusClass(status: string) {
@@ -183,20 +187,49 @@ function QuickAction({
 export default function PatientDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const slug = params?.slug as string;
   const isConsultation = searchParams.get("consultation") === "active";
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [waitingRoomId, setWaitingRoomId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!slug) return;
     const token = localStorage.getItem("auth_token") || "";
-    api<Patient>(`/patients/${slug}`, { token })
-      .then(setPatient)
+    Promise.all([
+      api<Patient>(`/patients/${slug}`, { token }),
+      isConsultation
+        ? api<{ data: { id: number; patient: { id: number }; status: string }[] }>("/waiting-room?per_page=100", { token })
+        : Promise.resolve(null),
+    ])
+      .then(([patientData, roomData]) => {
+        setPatient(patientData);
+        if (roomData?.data) {
+          const entry = roomData.data.find(
+            (e) => e.patient?.id === patientData.id && e.status === "En consultation",
+          );
+          if (entry) setWaitingRoomId(String(entry.id));
+        }
+      })
       .catch((err) => setError(err instanceof Error ? err.message : "Erreur lors du chargement"))
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [slug, isConsultation]);
+
+  const handleFinishConsultation = async () => {
+    if (!waitingRoomId) {
+      router.push("/salle-attente");
+      return;
+    }
+    try {
+      const token = localStorage.getItem("auth_token") || "";
+      await api(`/waiting-room/${waitingRoomId}/complete`, { method: "POST", token });
+      router.push("/salle-attente");
+    } catch {
+      router.push("/salle-attente");
+    }
+  };
 
   if (loading) {
     return (
@@ -252,7 +285,7 @@ export default function PatientDetailPage() {
       color: "text-[#7C3AED]",
       bgColor: "bg-purple-50",
       title: p.prescription_code,
-      detail: p.medications || "",
+      detail: normalizeNewlines(p.medications || ""),
       status: p.status,
       link: `/ordonnances/${p.id}`,
     });
@@ -318,13 +351,14 @@ export default function PatientDetailPage() {
                 <p className="text-sm font-semibold text-[#64748B]">Vous êtes en consultation avec ce patient</p>
               </div>
             </div>
-            <Link
-              href="/salle-attente"
+            <button
+              type="button"
+              onClick={handleFinishConsultation}
               className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-[#7C3AED] px-5 text-sm font-bold text-white shadow-lg shadow-purple-700/20 transition hover:-translate-y-0.5 hover:shadow-xl"
             >
               <CheckCircle className="h-4 w-4" />
               Terminer la consultation
-            </Link>
+            </button>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <Link

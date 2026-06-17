@@ -1,7 +1,7 @@
 "use client";
 
 import type { ComponentType, SVGProps } from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   BarChart3,
   ChevronDown,
@@ -98,9 +98,10 @@ const selectedTreatmentInfo = {
   updatedAt: "02 Juin 2026 par Dr Benali",
 };
 
-function formatPrice(value: number | string): string {
+function formatPrice(value: number | string | undefined | null): string {
+  if (value === undefined || value === null) return "0 DA";
   const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return String(value);
+  if (isNaN(num)) return "0 DA";
   return num.toLocaleString("fr-FR") + " DA";
 }
 
@@ -234,10 +235,11 @@ function StatCard({
   );
 }
 
-function FilterButton({ label, value }: { label: string; value: string }) {
+function FilterButton({ label, value, onClick }: { label: string; value: string; onClick: () => void }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="inline-flex h-11 items-center justify-between gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-left text-sm transition hover:border-[#0F766E]/40 hover:bg-teal-50"
     >
       <span className="min-w-0">
@@ -249,28 +251,29 @@ function FilterButton({ label, value }: { label: string; value: string }) {
   );
 }
 
-function CategoryChips() {
+function CategoryChips({ activeCategory, onCategoryChange }: { activeCategory: string; onCategoryChange: (cat: string) => void }) {
   return (
     <div className="mt-4 overflow-x-auto">
       <div className="flex min-w-max gap-2">
-        {categories.map((category) => {
-          const active = category === "Tous";
-
-          return (
-            <button
-              key={category}
-              type="button"
-              className={cx(
-                "h-9 rounded-lg border px-3 text-sm font-bold transition-all duration-200",
-                active
+        {categories.map((cat) => (
+          <button
+            key={cat}
+            type="button"
+            onClick={() => onCategoryChange(cat === "Tous" ? "" : cat)}
+            className={cx(
+              "h-9 rounded-lg border px-3 text-sm font-bold transition-all duration-200",
+              cat === "Tous"
+                ? activeCategory === ""
                   ? "border-[#0F766E] bg-[#0F766E] text-white shadow-md shadow-teal-700/20"
-                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50",
-              )}
-            >
-              {category}
-            </button>
-          );
-        })}
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                : activeCategory === cat
+                  ? "border-[#0F766E] bg-[#0F766E] text-white shadow-md shadow-teal-700/20"
+                  : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+            )}
+          >
+            {cat}
+          </button>
+        ))}
       </div>
     </div>
   );
@@ -283,6 +286,12 @@ function FiltersCard({
   meta,
   currentPage,
   onPageChange,
+  search,
+  onSearchChange,
+  category,
+  onCategoryChange,
+  status,
+  onStatusChange,
 }: {
   treatments: Treatment[];
   selectedTreatment: Treatment;
@@ -290,6 +299,12 @@ function FiltersCard({
   meta: { current_page: number; last_page: number; per_page: number; total: number } | null;
   currentPage: number;
   onPageChange: (page: number) => void;
+  search: string;
+  onSearchChange: (value: string) => void;
+  category: string;
+  onCategoryChange: (value: string) => void;
+  status: string;
+  onStatusChange: (value: string) => void;
 }) {
   return (
     <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -303,21 +318,31 @@ function FiltersCard({
             />
             <input
               type="search"
+              value={search}
+              onChange={(e) => onSearchChange(e.target.value)}
               placeholder="Rechercher un traitement..."
               className="h-11 w-full rounded-xl border border-[#E2E8F0] bg-white pl-10 pr-4 text-sm font-medium text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#0F766E] focus:ring-4 focus:ring-teal-700/10"
             />
           </label>
-          <FilterButton label="Catégorie" value="Toutes les catégories" />
-          <FilterButton label="Statut" value="Tous les statuts" />
-          <button
-            type="button"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0F766E] to-[#2563EB] px-4 text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Nouveau traitement
-          </button>
+          <FilterButton
+            label="Catégorie"
+            value={category || "Toutes les catégories"}
+            onClick={() => onCategoryChange("")}
+          />
+          <FilterButton
+            label="Statut"
+            value={status || "Tous les statuts"}
+            onClick={() => onStatusChange("")}
+          />
+                  <button
+                    type="button"
+                    className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0F766E] to-[#2563EB] px-4 text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    Nouveau traitement
+                  </button>
         </div>
-        <CategoryChips />
+        <CategoryChips activeCategory={category} onCategoryChange={onCategoryChange} />
       </div>
 
       <TreatmentsTable
@@ -706,6 +731,20 @@ export default function TraitementsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [statsData, setStatsData] = useState<TreatmentStats | null>(null);
 
+  // Filter states
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [category, setCategory] = useState("");
+  const [status, setStatus] = useState("");
+
+  // Debounce search (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   useEffect(() => {
     async function fetchStats() {
       try {
@@ -718,32 +757,45 @@ export default function TraitementsPage() {
     fetchStats();
   }, []);
 
-  useEffect(() => {
-    async function fetchTreatments() {
-      setLoading(true);
-      try {
-        const data = await api<PaginatedResponse>("/treatments");
-        const mapped = data.data.map(mapApiTreatment);
-        setTreatments(mapped);
-        setMeta(data.meta);
-        if (!selectedTreatment && mapped.length > 0) {
-          setSelectedTreatment(mapped[0]);
-        }
-      } catch {
-        setTreatments([]);
-        setMeta(null);
-      } finally {
-        setLoading(false);
+  const buildQuery = (page = 1) => {
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (category) params.set("category", category);
+    if (status) params.set("status", status);
+    return params.toString();
+  };
+
+  const fetchTreatments = useCallback(async (page = 1) => {
+    setLoading(true);
+    try {
+      const query = buildQuery(page);
+      const data = await api<PaginatedResponse>(`/treatments?${query}`);
+      const mapped = data.data.map(mapApiTreatment);
+      setTreatments(mapped);
+      setMeta(data.meta);
+      if (!selectedTreatment && mapped.length > 0) {
+        setSelectedTreatment(mapped[0]);
       }
+    } catch {
+      setTreatments([]);
+      setMeta(null);
+    } finally {
+      setLoading(false);
     }
-    fetchTreatments();
-  }, []);
+  }, [search, category, status, selectedTreatment]);
+
+  useEffect(() => {
+    fetchTreatments(1);
+    setCurrentPage(1);
+  }, [search, category, status]);
 
   const handlePageChange = async (page: number) => {
     setCurrentPage(page);
     setLoading(true);
     try {
-      const data = await api<PaginatedResponse>("/treatments");
+      const query = buildQuery(page);
+      const data = await api<PaginatedResponse>(`/treatments?${query}`);
       const mapped = data.data.map(mapApiTreatment);
       setTreatments(mapped);
       setMeta(data.meta);
@@ -761,31 +813,31 @@ export default function TraitementsPage() {
   const stats = [
     {
       title: "Total traitements",
-      value: statsData ? String(statsData.total_treatments) : "---",
+      value: statsData ? String(statsData.total_treatments) : "0",
       label: "Actifs",
       icon: Stethoscope,
       accent: "from-[#0F766E] to-[#2DD4BF]",
     },
     {
       title: "Utilisés ce mois",
-      value: statsData ? String(statsData.used_this_month) : "---",
-      label: statsData ? `+${statsData.used_change_percent}% vs mois dernier` : "---",
+      value: statsData ? String(statsData.used_this_month) : "0",
+      label: statsData ? `+${statsData.used_change_percent}% vs mois dernier` : "0% vs mois dernier",
       icon: ClipboardList,
       accent: "from-[#2563EB] to-[#60A5FA]",
     },
     {
       title: "Chiffre d'affaires",
-      value: statsData
+      value: statsData?.revenue != null
         ? statsData.revenue.toLocaleString("fr-FR") + " DA"
-        : "---",
+        : "0 DA",
       label: "Ce mois",
       icon: CircleDollarSign,
       accent: "from-[#F59E0B] to-[#FDBA74]",
     },
     {
       title: "Traitements populaires",
-      value: statsData?.popular_treatment_name ?? "---",
-      label: statsData ? `${statsData.popular_treatment_percent}% des traitements` : "---",
+      value: statsData?.popular_treatment_name ?? "Aucun",
+      label: statsData ? `${statsData.popular_treatment_percent}% des traitements` : "0% des traitements",
       icon: BarChart3,
       accent: "from-[#7C3AED] to-[#A78BFA]",
     },
@@ -817,8 +869,7 @@ export default function TraitementsPage() {
                       className="h-11 w-full rounded-xl border border-[#E2E8F0] bg-white pl-10 pr-4 text-sm font-medium text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#0F766E] focus:ring-4 focus:ring-teal-700/10"
                     />
                   </label>
-                  <FilterButton label="Catégorie" value="Toutes les catégories" />
-                  <FilterButton label="Statut" value="Tous les statuts" />
+                  <FilterButton label="Statut" value="Tous les statuts" onClick={() => {}} />
                   <button
                     type="button"
                     className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#0F766E] to-[#2563EB] px-4 text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl"
@@ -827,7 +878,7 @@ export default function TraitementsPage() {
                     Nouveau traitement
                   </button>
                 </div>
-                <CategoryChips />
+                <CategoryChips activeCategory="" onCategoryChange={() => {}} />
               </div>
               <LoadingSpinner />
             </article>
@@ -839,6 +890,12 @@ export default function TraitementsPage() {
               meta={meta}
               currentPage={currentPage}
               onPageChange={handlePageChange}
+              search={search}
+              onSearchChange={setSearch}
+              category={category}
+              onCategoryChange={setCategory}
+              status={status}
+              onStatusChange={setStatus}
             />
           )}
         </section>

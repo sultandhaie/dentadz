@@ -25,6 +25,7 @@ function PaymentForm() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showPatientResults, setShowPatientResults] = useState(false);
   const [serverError, setServerError] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
@@ -33,7 +34,7 @@ function PaymentForm() {
     ]).then(([p, t]) => {
       setPatients(p?.data ?? (Array.isArray(p) ? p : []));
       setTreatments(t?.data ?? (Array.isArray(t) ? t : []));
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
@@ -120,6 +121,14 @@ function PaymentForm() {
   };
 
   const selectedPatient = patients.find(p => String(p.id) === formData.patientId);
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#F59E0B] border-t-transparent" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

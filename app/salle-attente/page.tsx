@@ -12,12 +12,28 @@ import {
   MoreVertical,
   Plus,
   RefreshCw,
+  Search,
   Stethoscope,
   UserCheck,
   Users,
   Volume2,
+  X,
 } from "lucide-react";
 import { api } from "../../lib/api";
+
+type PatientOption = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  phone: string;
+};
+
+type TreatmentOption = {
+  id: number;
+  name: string;
+  price: number;
+  category?: string;
+};
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -25,6 +41,7 @@ type QueueStatus =
   | "En attente"
   | "En consultation"
   | "Prochain"
+  | "Arrivé"
   | "Terminé"
   | "Absent";
 
@@ -39,21 +56,8 @@ type QueuePatient = {
   treatment: string;
   waitingTime: string;
   status: QueueStatus;
-};
-
-type RecentCall = {
-  id: string;
-  time: string;
-  patient: string;
-  treatment: string;
-  status: "Terminé" | "Absent";
-  calledBy: string;
-};
-
-type DailyStat = {
-  label: string;
-  value: string;
-  tone: "teal" | "blue" | "green" | "red" | "orange";
+  appointmentId?: number;
+  patientId?: number;
 };
 
 type WaitingRoomEntry = {
@@ -70,8 +74,12 @@ type WaitingRoomEntry = {
   patient: { first_name: string; last_name: string; phone: string; patient_code: string };
   appointment?: Record<string, unknown>;
 };
-
 type StatsResponse = {
+  en_attente?: number;
+  en_consultation?: number;
+  prochain?: number;
+  termine?: number;
+  absent?: number;
   waiting?: number;
   in_consultation?: number;
   next?: number;
@@ -90,6 +98,8 @@ function mapApiStatus(raw: string): QueueStatus {
     "En consultation": "En consultation",
     next: "Prochain",
     Prochain: "Prochain",
+    "Arrivé": "Arrivé",
+    arrived: "Arrivé",
     completed: "Terminé",
     Terminé: "Terminé",
     absent: "Absent",
@@ -110,6 +120,7 @@ function mapApiEntry(entry: WaitingRoomEntry, index: number): QueuePatient {
     treatment: entry.treatment,
     waitingTime: entry.waiting_time ?? "—",
     status: mapApiStatus(entry.status),
+    patientId: entry.patient_id,
   };
 }
 
@@ -133,47 +144,13 @@ const statsTemplate = [
     accent: "from-[#F59E0B] to-[#FDBA74]",
   },
   {
-    title: "Terminés aujourd\u2019hui",
+    title: "Terminés aujourd'hui",
     label: "patients",
     icon: CheckCircle2,
     accent: "from-[#7C3AED] to-[#A78BFA]",
   },
 ];
 
-const recentCalls: RecentCall[] = [
-  {
-    id: "CALL-001",
-    time: "09:00",
-    patient: "Ahmed Benali",
-    treatment: "Détartrage",
-    status: "Terminé",
-    calledBy: "Réceptionniste",
-  },
-  {
-    id: "CALL-002",
-    time: "08:30",
-    patient: "Imane Ferhat",
-    treatment: "Consultation",
-    status: "Terminé",
-    calledBy: "Réceptionniste",
-  },
-  {
-    id: "CALL-003",
-    time: "08:00",
-    patient: "Rachid Hassaine",
-    treatment: "Plombage",
-    status: "Absent",
-    calledBy: "Réceptionniste",
-  },
-];
-
-const dailyStats: DailyStat[] = [
-  { label: "Total rendez-vous", value: "18", tone: "teal" },
-  { label: "Arrivés", value: "15", tone: "blue" },
-  { label: "En consultation", value: "2", tone: "orange" },
-  { label: "Terminés", value: "12", tone: "green" },
-  { label: "Annulés / Absents", value: "1", tone: "red" },
-];
 
 const panelClass =
   "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.06)] 2xl:p-5";
@@ -191,11 +168,12 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function getStatusClasses(status: QueueStatus | RecentCall["status"]) {
+function getStatusClasses(status: QueueStatus) {
   const classes: Record<QueueStatus, string> = {
     "En attente": "border-orange-200 bg-orange-50 text-orange-700",
     "En consultation": "border-purple-200 bg-purple-50 text-purple-700",
     Prochain: "border-blue-200 bg-blue-50 text-blue-700",
+    Arrivé: "border-teal-200 bg-teal-50 text-teal-700",
     Terminé: "border-green-200 bg-green-50 text-green-700",
     Absent: "border-red-200 bg-red-50 text-red-700",
   };
@@ -216,11 +194,15 @@ function getOrderBadgeClasses(order: number) {
 }
 
 function getActionButtonLabel(status: QueueStatus) {
-  return status === "En consultation" ? "En consultation" : "Appeler";
+  if (status === "En attente") return "Appeler";
+  if (status === "Arrivé") return "Appeler";
+  if (status === "Prochain") return "Commencer";
+  if (status === "En consultation") return "Terminer";
+  return "";
 }
 
-function getStatDotClass(tone: DailyStat["tone"]) {
-  const classes: Record<DailyStat["tone"], string> = {
+function getStatDotClass(tone: "teal" | "blue" | "green" | "red" | "orange") {
+  const classes: Record<string, string> = {
     teal: "bg-[#0F766E]",
     blue: "bg-[#2563EB]",
     green: "bg-[#22C55E]",
@@ -245,7 +227,7 @@ function Avatar({ name, className }: { name: string; className?: string }) {
   );
 }
 
-function StatusBadge({ status }: { status: QueueStatus | RecentCall["status"] }) {
+function StatusBadge({ status }: { status: QueueStatus }) {
   return (
     <span
       className={cx(
@@ -298,19 +280,45 @@ function QueueActionButton({
   patient,
   onCallNext,
   onComplete,
+  onStart,
 }: {
   patient: QueuePatient;
-  onCallNext: () => void;
+  onCallNext: (patient?: QueuePatient) => void;
   onComplete: (id: string) => void;
+  onStart: (id: string, patientCode: string) => void;
 }) {
-  const inConsultation = patient.status === "En consultation";
-  const Icon = inConsultation ? UserCheck : Volume2;
+  const status = patient.status;
+  if (status === "Terminé" || status === "Absent") return null;
+
+  let label: string;
+  let Icon: typeof Volume2;
+  let className: string;
+
+  if (status === "En attente") {
+    label = "Appeler";
+    Icon = Volume2;
+    className = "bg-[#0F766E] text-white shadow-lg shadow-teal-700/20 hover:bg-[#115E59]";
+  } else if (status === "Arrivé") {
+    label = "Appeler";
+    Icon = Volume2;
+    className = "bg-[#0F766E] text-white shadow-lg shadow-teal-700/20 hover:bg-[#115E59]";
+  } else if (status === "Prochain") {
+    label = "Commencer";
+    Icon = UserCheck;
+    className = "border border-blue-200 bg-blue-50 text-[#2563EB] hover:border-[#2563EB]/50 hover:bg-blue-100";
+  } else {
+    label = "Terminer";
+    Icon = CheckCircle2;
+    className = "border border-teal-200 bg-teal-50 text-[#0F766E] hover:border-[#0F766E]/50 hover:bg-teal-100";
+  }
 
   const handleClick = () => {
-    if (inConsultation) {
-      onComplete(patient.id);
+    if (status === "En attente" || status === "Arrivé") {
+      onCallNext(patient);
+    } else if (status === "Prochain") {
+      onStart(patient.id, patient.patientCode);
     } else {
-      onCallNext();
+      onComplete(patient.id);
     }
   };
 
@@ -320,14 +328,220 @@ function QueueActionButton({
       onClick={handleClick}
       className={cx(
         "inline-flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-xs font-bold transition-all duration-200",
-        inConsultation
-          ? "border border-teal-200 bg-teal-50 text-[#0F766E] hover:border-[#0F766E]/50 hover:bg-teal-100"
-          : "bg-[#0F766E] text-white shadow-lg shadow-teal-700/20 hover:bg-[#115E59]",
+        className,
       )}
     >
       <Icon className="h-4 w-4" aria-hidden="true" />
-      {getActionButtonLabel(patient.status)}
+      {label}
     </button>
+  );
+}
+
+function AddPatientModal({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const [patients, setPatients] = useState<PatientOption[]>([]);
+  const [treatments, setTreatments] = useState<TreatmentOption[]>([]);
+  const [patientSearch, setPatientSearch] = useState("");
+  const [treatmentSearch, setTreatmentSearch] = useState("");
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedTreatment, setSelectedTreatment] = useState<TreatmentOption | null>(null);
+  const [appointmentTime, setAppointmentTime] = useState(() => {
+    const now = new Date();
+    return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  });
+  const [appointmentLabel, setAppointmentLabel] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const token = localStorage.getItem("auth_token") || "";
+    Promise.all([
+      api<{ data: PatientOption[] }>("/patients?per_page=100", { token }),
+      api<{ data: TreatmentOption[] }>("/treatments?per_page=200", { token }),
+    ])
+      .then(([patientsRes, treatmentsRes]) => {
+        setPatients(patientsRes.data || []);
+        setTreatments(treatmentsRes.data || []);
+      })
+      .catch(() => {});
+  }, []);
+
+  const filteredPatients = patients.filter(
+    (p) =>
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(patientSearch.toLowerCase()) ||
+      p.phone.includes(patientSearch),
+  );
+
+  const filteredTreatments = treatments.filter((t) =>
+    t.name.toLowerCase().includes(treatmentSearch.toLowerCase()),
+  );
+
+  const handleSubmit = async () => {
+    if (!selectedId || !selectedTreatment) {
+      setError("Veuillez sélectionner un patient et un traitement.");
+      return;
+    }
+    setSubmitting(true);
+    setError("");
+    try {
+      const token = localStorage.getItem("auth_token") || "";
+      await api("/waiting-room", {
+        method: "POST",
+        token,
+        body: JSON.stringify({
+          patient_id: selectedId,
+          appointment_time: appointmentTime,
+          appointment_label: appointmentLabel || selectedTreatment.name,
+          treatment: selectedTreatment.name,
+          estimated_price: selectedTreatment.price,
+        }),
+      });
+      onAdded();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur lors de l'ajout");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={onClose}>
+      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#E2E8F0] bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-[#0F172A]">Ajouter un patient sans RDV</h3>
+          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#64748B] hover:bg-slate-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-bold text-[#EF4444]">{error}</div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#64748B]">Patient</label>
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]" />
+              <input
+                type="text"
+                placeholder="Rechercher un patient..."
+                value={patientSearch}
+                onChange={(e) => setPatientSearch(e.target.value)}
+                className="w-full rounded-xl border border-[#E2E8F0] py-2.5 pl-10 pr-3 text-sm font-medium text-[#0F172A] focus:border-[#0F766E] focus:outline-none"
+              />
+            </div>
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-[#E2E8F0] p-1">
+              {filteredPatients.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => { setSelectedId(p.id); setPatientSearch(""); }}
+                  className={cx(
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold transition",
+                    selectedId === p.id
+                      ? "bg-[#0F766E] text-white"
+                      : "text-[#0F172A] hover:bg-slate-50",
+                  )}
+                >
+                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-[#64748B]">
+                    {p.first_name[0]}{p.last_name[0]}
+                  </span>
+                  {p.first_name} {p.last_name}
+                </button>
+              ))}
+              {filteredPatients.length === 0 && (
+                <p className="py-2 text-center text-xs font-semibold text-[#64748B]">Aucun patient trouvé</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#64748B]">Traitement</label>
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#64748B]" />
+              <input
+                type="text"
+                placeholder="Rechercher un traitement..."
+                value={treatmentSearch}
+                onChange={(e) => setTreatmentSearch(e.target.value)}
+                className="w-full rounded-xl border border-[#E2E8F0] py-2.5 pl-10 pr-3 text-sm font-medium text-[#0F172A] focus:border-[#0F766E] focus:outline-none"
+              />
+            </div>
+            <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-[#E2E8F0] p-1">
+              {filteredTreatments.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => { setSelectedTreatment(t); setTreatmentSearch(""); }}
+                  className={cx(
+                    "flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-sm font-semibold transition",
+                    selectedTreatment?.id === t.id
+                      ? "bg-[#0F766E] text-white"
+                      : "text-[#0F172A] hover:bg-slate-50",
+                  )}
+                >
+                  <span>{t.name}</span>
+                  <span className={cx(
+                    "rounded-full px-2 py-0.5 text-[11px] font-bold",
+                    selectedTreatment?.id === t.id ? "bg-white/20 text-white" : "bg-teal-50 text-[#0F766E]",
+                  )}>
+                    {t.price.toLocaleString("fr-DZ")} DA
+                  </span>
+                </button>
+              ))}
+              {filteredTreatments.length === 0 && (
+                <p className="py-2 text-center text-xs font-semibold text-[#64748B]">Aucun traitement trouvé</p>
+              )}
+            </div>
+            {selectedTreatment && (
+              <div className="mt-2 flex items-center gap-2 rounded-lg bg-teal-50 px-3 py-2 text-sm font-semibold text-[#0F766E]">
+                <span>Sélectionné : {selectedTreatment.name}</span>
+                <span className="ml-auto font-bold">{selectedTreatment.price.toLocaleString("fr-DZ")} DA</span>
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#64748B]">Heure d'arrivée</label>
+            <input
+              type="time"
+              value={appointmentTime}
+              onChange={(e) => setAppointmentTime(e.target.value)}
+              className="w-full rounded-xl border border-[#E2E8F0] py-2.5 px-3 text-sm font-medium text-[#0F172A] focus:border-[#0F766E] focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-bold uppercase tracking-wider text-[#64748B]">Motif / Libellé (optionnel)</label>
+            <input
+              type="text"
+              value={appointmentLabel}
+              onChange={(e) => setAppointmentLabel(e.target.value)}
+              placeholder={selectedTreatment?.name || "Saisir un libellé..."}
+              className="w-full rounded-xl border border-[#E2E8F0] py-2.5 px-3 text-sm font-medium text-[#0F172A] focus:border-[#0F766E] focus:outline-none"
+            />
+          </div>
+        </div>
+
+        <div className="mt-5 flex gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-[#E2E8F0] bg-white py-2.5 text-sm font-bold text-[#64748B] transition hover:bg-slate-50"
+          >
+            Annuler
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            className="flex-1 rounded-xl bg-[#0F766E] py-2.5 text-sm font-bold text-white transition hover:bg-[#115E59] disabled:opacity-50"
+          >
+            {submitting ? "Ajout en cours..." : "Ajouter à la file"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -336,17 +550,21 @@ function WaitingQueueCard({
   onRefresh,
   onCallNext,
   onComplete,
+  onStart,
 }: {
   queuePatients: QueuePatient[];
   onRefresh: () => void;
-  onCallNext: () => void;
+  onCallNext: (patient?: QueuePatient) => void;
   onComplete: (id: string) => void;
+  onStart: (id: string, patientCode: string) => void;
 }) {
+  const [showAdd, setShowAdd] = useState(false);
+
   return (
     <article className={panelClass}>
       <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-[#0F172A]">File d\u2019attente</h2>
+          <h2 className="text-lg font-semibold text-[#0F172A]">File d'attente</h2>
           <p className="text-sm font-medium text-[#64748B]">
             Patients arrivés et ordre de passage.
           </p>
@@ -354,6 +572,7 @@ function WaitingQueueCard({
         <div className="grid gap-2 sm:flex sm:justify-end">
           <button
             type="button"
+            onClick={() => setShowAdd(true)}
             className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-3 text-sm font-bold text-white shadow-lg shadow-teal-700/20 transition-all duration-200 hover:bg-[#115E59]"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
@@ -370,23 +589,40 @@ function WaitingQueueCard({
         </div>
       </div>
 
-      <QueueDesktopTable
-        queuePatients={queuePatients}
-        onCallNext={onCallNext}
-        onComplete={onComplete}
-      />
-      <QueueMobileCards
-        queuePatients={queuePatients}
-        onCallNext={onCallNext}
-        onComplete={onComplete}
-      />
+      {showAdd && (
+        <AddPatientModal
+          onClose={() => setShowAdd(false)}
+          onAdded={() => {
+            setShowAdd(false);
+            onRefresh();
+          }}
+        />
+      )}
 
-      <a
-        href="#"
-        className="mx-auto mt-4 inline-flex w-full items-center justify-center text-sm font-bold text-[#0F766E] transition hover:text-[#115E59]"
-      >
-        Voir toute la file d\u2019attente →
-      </a>
+      {queuePatients.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 py-10 text-center">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-50 text-[#64748B]">
+            <Users className="h-7 w-7" />
+          </span>
+          <p className="text-sm font-bold text-[#0F172A]">Aucun patient dans la file d'attente</p>
+          <p className="text-xs font-semibold text-[#64748B]">Les patients arrivés apparaîtront ici.</p>
+        </div>
+      ) : (
+        <>
+          <QueueDesktopTable
+            queuePatients={queuePatients}
+            onCallNext={onCallNext}
+            onComplete={onComplete}
+            onStart={onStart}
+          />
+          <QueueMobileCards
+            queuePatients={queuePatients}
+            onCallNext={onCallNext}
+            onComplete={onComplete}
+            onStart={onStart}
+          />
+        </>
+      )}
     </article>
   );
 }
@@ -395,10 +631,12 @@ function QueueDesktopTable({
   queuePatients,
   onCallNext,
   onComplete,
+  onStart,
 }: {
   queuePatients: QueuePatient[];
-  onCallNext: () => void;
+  onCallNext: (patient?: QueuePatient) => void;
   onComplete: (id: string) => void;
+  onStart: (id: string, patientCode: string) => void;
 }) {
   return (
     <div className="hidden overflow-x-auto md:block">
@@ -454,11 +692,12 @@ function QueueDesktopTable({
                     patient={patient}
                     onCallNext={onCallNext}
                     onComplete={onComplete}
+                    onStart={onStart}
                   />
                   <button
                     type="button"
                     className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B] transition-all duration-200 hover:border-[#0F766E]/40 hover:bg-teal-50 hover:text-[#0F766E]"
-                    aria-label={`Plus d\u2019actions pour ${patient.name}`}
+                    aria-label={`Plus d'actions pour ${patient.name}`}
                   >
                     <MoreVertical className="h-4 w-4" aria-hidden="true" />
                   </button>
@@ -476,10 +715,12 @@ function QueueMobileCards({
   queuePatients,
   onCallNext,
   onComplete,
+  onStart,
 }: {
   queuePatients: QueuePatient[];
-  onCallNext: () => void;
+  onCallNext: (patient?: QueuePatient) => void;
   onComplete: (id: string) => void;
+  onStart: (id: string, patientCode: string) => void;
 }) {
   return (
     <div className="grid gap-3 md:hidden">
@@ -524,11 +765,12 @@ function QueueMobileCards({
               patient={patient}
               onCallNext={onCallNext}
               onComplete={onComplete}
+              onStart={onStart}
             />
             <button
               type="button"
               className="inline-flex h-10 items-center justify-center rounded-xl border border-[#E2E8F0] bg-white text-[#64748B]"
-              aria-label={`Plus d\u2019actions pour ${patient.name}`}
+              aria-label={`Plus d'actions pour ${patient.name}`}
             >
               <MoreVertical className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -611,12 +853,14 @@ function NextPatientCard({
   );
 }
 
-function DailyStatsCard() {
+function DailyStatsCard({ stats }: { stats: { label: string; value: string; tone: "teal" | "blue" | "green" | "red" | "orange" }[] }) {
+  if (stats.length === 0) return null;
+
   return (
     <article className={panelClass}>
       <h2 className="mb-4 text-lg font-semibold text-[#0F172A]">Statistiques du jour</h2>
       <dl className="space-y-3">
-        {dailyStats.map((item) => (
+        {stats.map((item) => (
           <div
             key={item.label}
             className="flex items-center justify-between gap-3 rounded-xl border border-[#E2E8F0] bg-slate-50/70 p-3"
@@ -643,7 +887,7 @@ function TipCard() {
         <div>
           <h2 className="text-base font-bold">Astuce</h2>
           <p className="mt-1 text-sm font-semibold leading-6 text-[#0F766E]">
-            Utilisez le bouton \u201CAppeler\u201D pour notifier le patient via l\u2019écran d\u2019appel en salle d\u2019attente.
+            Utilisez le bouton "Appeler" pour notifier le patient via l'écran d'appel en salle d'attente.
           </p>
         </div>
       </div>
@@ -678,7 +922,7 @@ function CallScreenCard({
     <article className="relative overflow-hidden rounded-2xl border border-teal-200 bg-gradient-to-br from-[#0F766E] to-[#2563EB] p-4 text-white shadow-[0_20px_45px_rgba(15,118,110,0.18)] 2xl:p-5">
       <ToothWatermark />
       <div className="relative">
-        <h2 className="text-lg font-semibold">Écran d\u2019appel</h2>
+        <h2 className="text-lg font-semibold">Écran d'appel</h2>
         <p className="mt-4 text-xs font-bold uppercase text-white/70">Patient à appeler</p>
         <h3 className="mt-1 text-2xl font-bold">{patient?.name ?? "Aucun patient"}</h3>
         <p className="mt-1 text-sm font-semibold text-white/80">{patient?.treatment ?? ""}</p>
@@ -695,7 +939,18 @@ function CallScreenCard({
   );
 }
 
-function RecentCallsCard() {
+function RecentCallsCard({ calls }: { calls: QueuePatient[] }) {
+  if (calls.length === 0) {
+    return (
+      <article className={panelClass}>
+        <div className="mb-4">
+          <h2 className="text-lg font-semibold text-[#0F172A]">Derniers appels</h2>
+          <p className="text-sm font-medium text-[#64748B]">Aucun appel récent.</p>
+        </div>
+      </article>
+    );
+  }
+
   return (
     <article className={panelClass}>
       <div className="mb-4">
@@ -707,21 +962,17 @@ function RecentCallsCard() {
         <table className="w-full min-w-[720px] border-separate border-spacing-0 text-left text-sm">
           <thead>
             <tr className="text-xs font-bold text-[#64748B]">
-              <th className="border-b border-[#E2E8F0] pb-3 pr-4">Heure</th>
               <th className="border-b border-[#E2E8F0] pb-3 pr-4">Patient</th>
-              <th className="border-b border-[#E2E8F0] pb-3 pr-4">Rendez-vous</th>
+              <th className="border-b border-[#E2E8F0] pb-3 pr-4">Traitement</th>
               <th className="border-b border-[#E2E8F0] pb-3 pr-4">Statut</th>
-              <th className="border-b border-[#E2E8F0] pb-3">Appelé par</th>
+              <th className="border-b border-[#E2E8F0] pb-3 pr-4">Heure</th>
             </tr>
           </thead>
           <tbody>
-            {recentCalls.map((call) => (
+            {calls.map((call) => (
               <tr key={call.id} className="transition-all duration-200 hover:bg-slate-50">
                 <td className="border-b border-slate-100 py-3 pr-4 font-bold text-[#0F172A]">
-                  {call.time}
-                </td>
-                <td className="border-b border-slate-100 py-3 pr-4 font-bold text-[#0F172A]">
-                  {call.patient}
+                  {call.name}
                 </td>
                 <td className="border-b border-slate-100 py-3 pr-4 font-medium text-[#64748B]">
                   {call.treatment}
@@ -729,8 +980,8 @@ function RecentCallsCard() {
                 <td className="border-b border-slate-100 py-3 pr-4">
                   <StatusBadge status={call.status} />
                 </td>
-                <td className="border-b border-slate-100 py-3 font-medium text-[#64748B]">
-                  {call.calledBy}
+                <td className="border-b border-slate-100 py-3 font-bold text-[#0F172A]">
+                  {call.appointmentTime}
                 </td>
               </tr>
             ))}
@@ -739,27 +990,19 @@ function RecentCallsCard() {
       </div>
 
       <div className="grid gap-3 md:hidden">
-        {recentCalls.map((call) => (
+        {calls.map((call) => (
           <article key={call.id} className="rounded-2xl border border-[#E2E8F0] bg-slate-50/70 p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-lg font-bold text-[#0F172A]">{call.time}</p>
-                <h3 className="mt-1 font-bold text-[#0F172A]">{call.patient}</h3>
+                <p className="text-lg font-bold text-[#0F172A]">{call.appointmentTime}</p>
+                <h3 className="mt-1 font-bold text-[#0F172A]">{call.name}</h3>
                 <p className="text-sm font-medium text-[#64748B]">{call.treatment}</p>
-                <p className="mt-1 text-xs font-bold text-[#64748B]">{call.calledBy}</p>
               </div>
               <StatusBadge status={call.status} />
             </div>
           </article>
         ))}
       </div>
-
-      <a
-        href="#"
-        className="mx-auto mt-4 inline-flex w-full items-center justify-center text-sm font-bold text-[#0F766E] transition hover:text-[#115E59]"
-      >
-        Voir tout l\u2019historique →
-      </a>
     </article>
   );
 }
@@ -771,30 +1014,59 @@ export default function SalleAttentePage() {
     "En attente": "0",
     "En consultation": "0",
     Prochains: "0",
-    "Terminés aujourd\u2019hui": "0",
+    "Terminés aujourd'hui": "0",
   });
   const [loading, setLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
-      const [roomData, statsData] = await Promise.all([
-        api<{ data: WaitingRoomEntry[]; meta?: Record<string, unknown> }>("/waiting-room"),
+      const today = new Date().toISOString().split("T")[0];
+      const [roomData, statsData, appointmentsData] = await Promise.all([
+        api<{ data: WaitingRoomEntry[]; meta?: Record<string, unknown> }>("/waiting-room?per_page=100"),
         api<StatsResponse>("/waiting-room/stats"),
+        api<{ data: { id: number; patient: { first_name: string; last_name: string; phone: string; patient_code: string; id: number }; start_time: string; treatment: string; status: string }[] }>(`/appointments?date=${today}&status=Arrivé&per_page=100`),
       ]);
 
       const mapped = roomData.data.map((entry, index) => mapApiEntry(entry, index));
-      setQueuePatients(mapped);
+
+      const existingPatientIds = new Set(roomData.data.map((e) => e.patient_id));
+      const arrivedFromAppointments = (appointmentsData.data || [])
+        .filter((a) => !existingPatientIds.has(a.patient?.id))
+        .map((a, i) => ({
+          id: `apt-${a.id}`,
+          order: mapped.length + i + 1,
+          name: `${a.patient.first_name} ${a.patient.last_name}`,
+          phone: a.patient.phone,
+          patientCode: a.patient.patient_code,
+          appointmentTime: a.start_time || "",
+          appointmentLabel: `${a.patient.first_name} ${a.patient.last_name} - ${a.treatment}`,
+          treatment: a.treatment,
+          waitingTime: "—",
+          status: "Arrivé" as QueueStatus,
+          appointmentId: a.id,
+          patientId: a.patient.id,
+        }));
+
+      // Sort all patients by appointment time, then by queue order
+      const allPatients = [...mapped, ...arrivedFromAppointments].sort((a, b) => {
+        const timeA = a.appointmentTime || "00:00";
+        const timeB = b.appointmentTime || "00:00";
+        if (timeA !== timeB) return timeA.localeCompare(timeB);
+        return a.order - b.order;
+      }).map((p, i) => ({ ...p, order: i + 1 }));
+
+      setQueuePatients(allPatients);
 
       setStatsValues({
         "En attente": String(
-          statsData.waiting ?? statsData.waiting_count ?? 0,
+          statsData.en_attente ?? statsData.waiting ?? statsData.waiting_count ?? 0,
         ),
         "En consultation": String(
-          statsData.in_consultation ?? statsData.in_consultation_count ?? 0,
+          statsData.en_consultation ?? statsData.in_consultation ?? statsData.in_consultation_count ?? 0,
         ),
-        Prochains: String(statsData.next ?? statsData.next_count ?? 0),
-        "Terminés aujourd\u2019hui": String(
-          statsData.completed ?? statsData.completed_count ?? 0,
+        Prochains: String(statsData.prochain ?? statsData.next ?? statsData.next_count ?? 0),
+        "Terminés aujourd'hui": String(
+          statsData.termine ?? statsData.completed ?? statsData.completed_count ?? 0,
         ),
       });
     } catch (err) {
@@ -808,9 +1080,23 @@ export default function SalleAttentePage() {
     fetchData();
   }, [fetchData]);
 
-  const handleCallNext = async () => {
+  const handleCallNext = async (patient?: QueuePatient) => {
     try {
-      await api("/waiting-room/call-next", { method: "POST" });
+      if (patient?.status === "Arrivé" && patient.appointmentId) {
+        await api("/waiting-room", {
+          method: "POST",
+          body: JSON.stringify({
+            patient_id: patient.patientId || 0,
+            appointment_id: patient.appointmentId,
+            appointment_time: patient.appointmentTime,
+            appointment_label: patient.appointmentLabel,
+            treatment: patient.treatment,
+            promote_to_prochain: true,
+          }),
+        });
+      } else {
+        await api("/waiting-room/call-next", { method: "POST" });
+      }
       await fetchData();
     } catch (err) {
       console.error("Failed to call next patient:", err);
@@ -841,6 +1127,18 @@ export default function SalleAttentePage() {
   const nextPatient = queuePatients.find((p) => p.status === "Prochain");
   const firstWaiting = queuePatients.find((p) => p.status === "En attente");
 
+  const recentCallsData = queuePatients
+    .filter((p) => p.status === "Terminé" || p.status === "Absent")
+    .slice(0, 5);
+
+  const dailyStatItems = [
+    { label: "Total en file", value: String(queuePatients.length), tone: "teal" as const },
+    { label: "En attente", value: statsValues["En attente"] || "0", tone: "blue" as const },
+    { label: "En consultation", value: statsValues["En consultation"] || "0", tone: "orange" as const },
+    { label: "Terminés", value: statsValues["Terminés aujourd'hui"] || "0", tone: "green" as const },
+    { label: "Absents", value: String(queuePatients.filter((p) => p.status === "Absent").length), tone: "red" as const },
+  ];
+
   if (loading) {
     return (
       <section className="flex items-center justify-center py-20">
@@ -853,7 +1151,7 @@ export default function SalleAttentePage() {
     <section className="space-y-5">
       <section
         className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
-        aria-label="Statistiques salle d\u2019attente"
+        aria-label="Statistiques salle d'attente"
       >
         {statsTemplate.map((stat) => (
           <StatCard
@@ -871,8 +1169,9 @@ export default function SalleAttentePage() {
             onRefresh={fetchData}
             onCallNext={handleCallNext}
             onComplete={handleComplete}
+            onStart={handleStart}
           />
-          <RecentCallsCard />
+          <RecentCallsCard calls={recentCallsData} />
         </section>
         <aside className="space-y-4 2xl:space-y-5">
           <CurrentConsultationCard
@@ -880,7 +1179,7 @@ export default function SalleAttentePage() {
             onComplete={handleComplete}
           />
           <NextPatientCard patient={nextPatient} onStart={handleStart} />
-          <DailyStatsCard />
+          <DailyStatsCard stats={dailyStatItems} />
           <TipCard />
           <CallScreenCard patient={firstWaiting} onCall={handleCallNext} />
         </aside>
