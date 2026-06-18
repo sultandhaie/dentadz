@@ -1017,17 +1017,27 @@ export default function SalleAttentePage() {
     "Terminés aujourd'hui": "0",
   });
   const [loading, setLoading] = useState(true);
+  const [recentCalls, setRecentCalls] = useState<QueuePatient[]>([]);
 
   const fetchData = useCallback(async () => {
     try {
       const today = new Date().toISOString().split("T")[0];
-      const [roomData, statsData, appointmentsData] = await Promise.all([
-        api<{ data: WaitingRoomEntry[]; meta?: Record<string, unknown> }>("/waiting-room?per_page=100"),
+      const [roomData, statsData, appointmentsData, completedData] = await Promise.all([
+        api<{ data: WaitingRoomEntry[]; meta?: Record<string, unknown> }>("/waiting-room?per_page=100&exclude_terminated=1"),
         api<StatsResponse>("/waiting-room/stats"),
         api<{ data: { id: number; patient: { first_name: string; last_name: string; phone: string; patient_code: string; id: number }; start_time: string; treatment: string; status: string }[] }>(`/appointments?date=${today}&status=Arrivé&per_page=100`),
+        api<{ data: WaitingRoomEntry[] }>("/waiting-room?per_page=10&completed_only=1"),
       ]);
 
       const mapped = roomData.data.map((entry, index) => mapApiEntry(entry, index));
+
+      // Recent calls: Terminé and Absent entries for today
+      const terminatedEntries = (completedData.data || [])
+        .filter((e) => e.status === "Terminé" || e.status === "Absent")
+        .sort((a, b) => (b.queue_number ?? 0) - (a.queue_number ?? 0))
+        .slice(0, 10)
+        .map((entry, i) => mapApiEntry(entry, i));
+      setRecentCalls(terminatedEntries);
 
       const existingPatientIds = new Set(roomData.data.map((e) => e.patient_id));
       const arrivedFromAppointments = (appointmentsData.data || [])
@@ -1047,12 +1057,20 @@ export default function SalleAttentePage() {
           patientId: a.patient.id,
         }));
 
-      // Sort all patients by appointment time, then by queue order
+      // Sort: En consultation first, then Prochain, Arrivé, En attente
+      const statusOrder: Record<string, number> = {
+        "En consultation": 0,
+        "Prochain": 1,
+        "Arrivé": 2,
+        "En attente": 3,
+      };
       const allPatients = [...mapped, ...arrivedFromAppointments].sort((a, b) => {
+        const orderA = statusOrder[a.status] ?? 3;
+        const orderB = statusOrder[b.status] ?? 3;
+        if (orderA !== orderB) return orderA - orderB;
         const timeA = a.appointmentTime || "00:00";
         const timeB = b.appointmentTime || "00:00";
-        if (timeA !== timeB) return timeA.localeCompare(timeB);
-        return a.order - b.order;
+        return timeA.localeCompare(timeB);
       }).map((p, i) => ({ ...p, order: i + 1 }));
 
       setQueuePatients(allPatients);
@@ -1127,9 +1145,7 @@ export default function SalleAttentePage() {
   const nextPatient = queuePatients.find((p) => p.status === "Prochain");
   const firstWaiting = queuePatients.find((p) => p.status === "En attente");
 
-  const recentCallsData = queuePatients
-    .filter((p) => p.status === "Terminé" || p.status === "Absent")
-    .slice(0, 5);
+  const recentCallsData = recentCalls;
 
   const dailyStatItems = [
     { label: "Total en file", value: String(queuePatients.length), tone: "teal" as const },

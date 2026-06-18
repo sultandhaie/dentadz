@@ -92,12 +92,6 @@ const reportDownloads = [
   { title: "Traitements populaires", detail: "Volume, prix moyen et fréquence", icon: Stethoscope },
 ];
 
-const recentInsights = [
-  { time: "10:30", title: "Paiements", detail: "Encaissement Cash de 18.000 DA", icon: CreditCard, color: "text-[#0F766E]", bg: "bg-teal-50" },
-  { time: "09:45", title: "Rendez-vous", detail: "12 confirmations envoyées", icon: CalendarDays, color: "text-[#2563EB]", bg: "bg-blue-50" },
-  { time: "08:50", title: "Traitements", detail: "Détartrage reste l'acte le plus fréquent", icon: Stethoscope, color: "text-[#F59E0B]", bg: "bg-orange-50" },
-];
-
 const panelClass =
   "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.05)] 2xl:p-5";
 
@@ -159,7 +153,8 @@ function StatCard({ title, value, label, icon: Icon, accent }: Stat) {
   );
 }
 
-function RevenueChartCard({ revenueMonths }: { revenueMonths: { label: string; value: number }[] }) {
+function RevenueChartCard({ revenueMonths, trend }: { revenueMonths: { label: string; value: number }[]; trend: number }) {
+  const trendClass = trend >= 0 ? "border-green-200 bg-green-50 text-green-700" : "border-red-200 bg-red-50 text-red-700";
   return (
     <article className={panelClass}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -167,9 +162,9 @@ function RevenueChartCard({ revenueMonths }: { revenueMonths: { label: string; v
           <h2 className="text-lg font-semibold text-[#0F172A]">Évolution du chiffre d&apos;affaires</h2>
           <p className="text-sm font-medium text-[#64748B]">Revenus encaissés sur les 6 derniers mois.</p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-bold text-green-700">
+        <span className={cx("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-bold", trendClass)}>
           <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
-          +14%
+          {trend >= 0 ? "+" : ""}{trend}%
         </span>
       </div>
       <div className="mt-5 flex h-64 items-end gap-3 rounded-2xl border border-[#E2E8F0] bg-slate-50/70 p-4">
@@ -321,7 +316,13 @@ function DownloadsCard() {
   );
 }
 
-function InsightsCard() {
+function InsightsCard({ recentActivity }: { recentActivity: DashboardData["recent_activity"] }) {
+  const iconMap: Record<string, IconComponent> = {
+    CreditCard,
+    CalendarDays,
+    Stethoscope,
+  };
+
   return (
     <article className={panelClass}>
       <div className="flex items-center justify-between gap-3">
@@ -329,45 +330,64 @@ function InsightsCard() {
         <Activity className="h-5 w-5 text-[#06B6D4]" aria-hidden="true" />
       </div>
       <div className="mt-4 space-y-3">
-        {recentInsights.map((item) => (
-          <div key={`${item.time}-${item.title}`} className="flex items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-slate-50/70 p-3">
-            <span className={cx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", item.bg, item.color)}>
-              <item.icon className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-bold text-[#0F172A]">{item.title}</p>
-              <p className="truncate text-xs font-semibold text-[#64748B]">{item.detail}</p>
-            </div>
-            <span className="text-xs font-bold text-[#64748B]">{item.time}</span>
-          </div>
-        ))}
+        {recentActivity.length === 0 ? (
+          <p className="py-4 text-center text-sm font-semibold text-[#64748B]">Aucune activité récente.</p>
+        ) : (
+          recentActivity.map((item, i) => {
+            const ItemIcon = iconMap[item.icon] || CreditCard;
+            return (
+              <div key={`${item.time}-${item.title}-${i}`} className="flex items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-slate-50/70 p-3">
+                <span className={cx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", item.bg, item.color)}>
+                  <ItemIcon className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-[#0F172A]">{item.title}</p>
+                  <p className="truncate text-xs font-semibold text-[#64748B]">{item.detail}</p>
+                </div>
+                <span className="text-xs font-bold text-[#64748B]">{item.time}</span>
+              </div>
+            );
+          })
+        )}
       </div>
     </article>
   );
 }
 
-function SummaryStrip() {
+function SummaryStrip({
+  totalAppointments,
+  monthRevenue,
+  todayAppointments,
+  newPatientsThisMonth,
+  totalPatients,
+}: {
+  totalAppointments: number;
+  monthRevenue: number;
+  todayAppointments: number;
+  newPatientsThisMonth: number;
+  totalPatients: number;
+}) {
+  const averageBasket = todayAppointments > 0 ? Math.round(monthRevenue / todayAppointments) : 0;
+  const patientGrowth = totalPatients > 0 ? Math.round((newPatientsThisMonth / totalPatients) * 100) : 0;
+  const items: [string, string, IconComponent, string, string][] = [
+    ["Taux d'occupation", `${todayAppointments} RDV aujourd'hui`, Clock3, "text-[#0F766E]", "bg-teal-50"],
+    ["Panier moyen", formatDA(averageBasket), ReceiptText, "text-[#2563EB]", "bg-blue-50"],
+    ["Croissance patients", `+${patientGrowth}%`, ArrowUpRight, "text-[#22C55E]", "bg-green-50"],
+  ];
   return (
     <article className="rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.05)]">
       <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          ["Taux d'occupation", "82%", Clock3, "text-[#0F766E]", "bg-teal-50"],
-          ["Panier moyen", "12.800 DA", ReceiptText, "text-[#2563EB]", "bg-blue-50"],
-          ["Croissance patients", "+11%", ArrowUpRight, "text-[#22C55E]", "bg-green-50"],
-        ].map(([label, value, Icon, color, bg]) => {
-          const ItemIcon = Icon as IconComponent;
-          return (
-            <div key={label as string} className="flex items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-slate-50/70 p-3">
-              <span className={cx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", color as string, bg as string)}>
-                <ItemIcon className="h-5 w-5" aria-hidden="true" />
-              </span>
-              <div>
-                <p className="text-xs font-bold uppercase text-[#64748B]">{label as string}</p>
-                <p className="text-lg font-bold text-[#0F172A]">{value as string}</p>
-              </div>
+        {items.map(([label, value, Icon, color, bg]) => (
+          <div key={label} className="flex items-center gap-3 rounded-2xl border border-[#E2E8F0] bg-slate-50/70 p-3">
+            <span className={cx("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", color, bg)}>
+              <Icon className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-xs font-bold uppercase text-[#64748B]">{label}</p>
+              <p className="text-lg font-bold text-[#0F172A]">{value}</p>
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </article>
   );
@@ -413,11 +433,16 @@ export default function RapportsPage() {
   const confirmedCount = dashboard.appointment_stats.find((s) => s.label === "Confirmés")?.value || 0;
   const confirmedPercent = totalAppointments > 0 ? Math.round((confirmedCount / totalAppointments) * 100) : 0;
 
+  const revenueValues = dashboard.revenue_chart.map((m) => m.value);
+  const lastMonth = revenueValues[revenueValues.length - 1] || 0;
+  const prevMonth = revenueValues[revenueValues.length - 2] || 0;
+  const revenueTrend = prevMonth > 0 ? Math.round(((lastMonth - prevMonth) / prevMonth) * 100) : 0;
+
   const stats: Stat[] = [
     {
       title: "Chiffre d'affaires",
       value: formatDA(dashboard.stats.month_revenue),
-      label: "+14% vs mois dernier",
+      label: revenueTrend >= 0 ? `+${revenueTrend}% vs mois dernier` : `${revenueTrend}% vs mois dernier`,
       icon: Wallet,
       accent: "from-[#0F766E] to-[#2DD4BF]",
     },
@@ -473,11 +498,17 @@ export default function RapportsPage() {
         ))}
       </section>
 
-      <SummaryStrip />
+      <SummaryStrip
+        totalAppointments={totalAppointments}
+        monthRevenue={dashboard.stats.month_revenue}
+        todayAppointments={dashboard.stats.today_appointments}
+        newPatientsThisMonth={dashboard.stats.new_patients_this_month}
+        totalPatients={dashboard.stats.total_patients}
+      />
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_340px] 2xl:grid-cols-[minmax(0,1fr)_380px]">
         <section className="min-w-0 space-y-5">
-          <RevenueChartCard revenueMonths={revenueMonths} />
+          <RevenueChartCard revenueMonths={revenueMonths} trend={revenueTrend} />
           <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
             <TreatmentBreakdownCard treatmentBreakdown={treatmentBreakdown} />
             <DentistPerformanceCard dentistPerformance={dashboard.dentist_performance} />
@@ -489,7 +520,7 @@ export default function RapportsPage() {
             totalAppointments={totalAppointments}
           />
           <DownloadsCard />
-          <InsightsCard />
+          <InsightsCard recentActivity={dashboard.recent_activity} />
         </aside>
       </div>
     </section>

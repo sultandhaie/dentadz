@@ -90,19 +90,15 @@ const mapStatus = (status: string): PrescriptionStatus => {
   return "En attente";
 };
 
-const mostPrescribedMedications = [
-  { name: "Amoxicilline 500mg", count: 28, percent: "19.7%", color: "bg-[#0F766E]" },
-  { name: "Ibuprofène 400mg", count: 24, percent: "16.9%", color: "bg-[#2563EB]" },
-  { name: "Paracétamol 1g", count: 20, percent: "14.1%", color: "bg-[#F59E0B]" },
-  { name: "Métronidazole 500mg", count: 15, percent: "10.6%", color: "bg-[#7C3AED]" },
-  { name: "Chlorhexidine 0.12%", count: 12, percent: "8.5%", color: "bg-[#22C55E]" },
-];
-
-const statusAnalytics = [
-  { label: "Délivrées", value: "63", percent: "84%", dot: "bg-[#22C55E]", text: "text-green-700" },
-  { label: "En attente", value: "12", percent: "16%", dot: "bg-[#F59E0B]", text: "text-orange-700" },
-  { label: "Annulées", value: "0", percent: "0%", dot: "bg-[#EF4444]", text: "text-red-700" },
-];
+type PrescriptionStats = {
+  total: number;
+  delivered: number;
+  pending: number;
+  expired: number;
+  cancelled: number;
+  total_medications: number;
+  top_medications: { name: string; count: number; percent: string; color: string }[];
+};
 
 const panelClass =
   "rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_20px_45px_rgba(15,23,42,0.05)] 2xl:p-5";
@@ -506,20 +502,22 @@ function InfoRow({
   label,
   value,
   valueClassName,
+  wrap,
 }: {
   icon: IconComponent;
   label: string;
   value: string;
   valueClassName?: string;
+  wrap?: boolean;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-[#E2E8F0] bg-slate-50/70 p-3">
+    <div className="flex items-start gap-3 rounded-xl border border-[#E2E8F0] bg-slate-50/70 p-3">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#0F766E]">
         <Icon className="h-4 w-4" aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-xs font-bold uppercase text-[#64748B]">{label}</p>
-        <p className={cx("truncate text-sm font-bold text-[#0F172A]", valueClassName)}>{value}</p>
+        <p className={cx("text-sm font-bold text-[#0F172A]", wrap ? "whitespace-normal break-words" : "truncate", valueClassName)}>{value}</p>
       </div>
     </div>
   );
@@ -528,6 +526,7 @@ function InfoRow({
 function MedicationList({ medications }: { medications: string }) {
   const items = medications
     ? medications
+        .replace(/\\n/g, "\n")
         .split("\n")
         .map((line) => line.trim())
         .filter(Boolean)
@@ -593,8 +592,8 @@ function OrdonnanceDetailsPanel({ prescription }: { prescription: Prescription }
       </div>
 
       <div className="mt-5 grid gap-3">
-        <InfoRow icon={Calendar} label="Date" value={prescription.date} />
-        <InfoRow icon={Stethoscope} label="Traitement" value={prescription.treatment} />
+        <InfoRow icon={Calendar} label="Date" value={prescription.date ? new Date(prescription.date).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" }) : ""} />
+        <InfoRow icon={Stethoscope} label="Traitement" value={prescription.treatment} wrap />
         <InfoRow icon={UserRound} label="Dentiste" value={prescription.dentist} />
         <InfoRow icon={CheckCircle2} label="Statut" value={prescription.status} valueClassName="text-green-700" />
         <InfoRow icon={Building2} label="Pharmacie" value="Pharmacie Benakli" />
@@ -627,14 +626,25 @@ function OrdonnanceDetailsPanel({ prescription }: { prescription: Prescription }
   );
 }
 
-function MedicationAnalyticsCard() {
-  const max = Math.max(...mostPrescribedMedications.map((item) => item.count));
+function MedicationAnalyticsCard({ topMedications }: { topMedications: PrescriptionStats["top_medications"] }) {
+  if (topMedications.length === 0) {
+    return (
+      <article className={panelClass}>
+        <h2 className="text-lg font-semibold text-[#0F172A]">Médicaments les plus prescrits</h2>
+        <div className="mt-4 rounded-2xl border border-[#E2E8F0] bg-white p-4 text-center text-sm font-semibold text-[#64748B]">
+          Aucune donnée disponible
+        </div>
+      </article>
+    );
+  }
+
+  const max = Math.max(...topMedications.map((item) => item.count));
 
   return (
     <article className={panelClass}>
       <h2 className="text-lg font-semibold text-[#0F172A]">Médicaments les plus prescrits</h2>
       <div className="mt-4 space-y-4">
-        {mostPrescribedMedications.map((item) => (
+        {topMedications.map((item) => (
           <div key={item.name}>
             <div className="flex items-center justify-between gap-3 text-sm">
               <p className="truncate font-bold text-[#0F172A]">{item.name}</p>
@@ -650,19 +660,35 @@ function MedicationAnalyticsCard() {
   );
 }
 
-function PrescriptionStatusCard() {
+function PrescriptionStatusCard({ stats }: { stats: PrescriptionStats }) {
+  const total = stats.total || 1;
+  const deliveredPct = Math.round((stats.delivered / total) * 100);
+  const pendingPct = Math.round(((stats.pending + stats.expired) / total) * 100);
+  const cancelledPct = 100 - deliveredPct - pendingPct;
+
+  const statusData = [
+    { label: "Délivrées", value: String(stats.delivered), percent: `${deliveredPct}%`, dot: "bg-[#22C55E]", text: "text-green-700" },
+    { label: "En attente", value: String(stats.pending + stats.expired), percent: `${pendingPct}%`, dot: "bg-[#F59E0B]", text: "text-orange-700" },
+    { label: "Annulées", value: String(stats.cancelled), percent: `${cancelledPct}%`, dot: "bg-[#EF4444]", text: "text-red-700" },
+  ];
+
   return (
     <article className={panelClass}>
       <h2 className="text-lg font-semibold text-[#0F172A]">Statuts des ordonnances</h2>
       <div className="mt-4 grid gap-4 sm:grid-cols-[150px_1fr] sm:items-center">
-        <div className="mx-auto flex h-36 w-36 items-center justify-center rounded-full bg-[conic-gradient(#22C55E_0_84%,#F59E0B_84%_100%,#EF4444_100%_100%)]">
+        <div
+          className="mx-auto flex h-36 w-36 items-center justify-center rounded-full"
+          style={{
+            background: `conic-gradient(#22C55E 0 ${deliveredPct}%, #F59E0B ${deliveredPct}% ${deliveredPct + pendingPct}%, #EF4444 ${deliveredPct + pendingPct}% 100%)`,
+          }}
+        >
           <div className="flex h-24 w-24 flex-col items-center justify-center rounded-full bg-white text-center shadow-inner">
-            <span className="text-lg font-bold text-[#0F172A]">75</span>
+            <span className="text-lg font-bold text-[#0F172A]">{stats.total}</span>
             <span className="text-[11px] font-bold text-[#64748B]">Total</span>
           </div>
         </div>
         <dl className="space-y-3">
-          {statusAnalytics.map((item) => (
+          {statusData.map((item) => (
             <div key={item.label} className="flex items-center justify-between gap-3 text-sm">
               <dt className="flex items-center gap-2 font-semibold text-[#64748B]">
                 <span className={cx("h-2.5 w-2.5 rounded-full", item.dot)} />
@@ -692,6 +718,15 @@ export default function OrdonnancesPage() {
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
   const [selectedPrescription, setSelectedPrescription] = useState<Prescription | null>(null);
   const [loading, setLoading] = useState(true);
+  const [prescriptionStats, setPrescriptionStats] = useState<PrescriptionStats>({
+    total: 0,
+    delivered: 0,
+    pending: 0,
+    expired: 0,
+    cancelled: 0,
+    total_medications: 0,
+    top_medications: [],
+  });
   const [stats, setStats] = useState<Stat[]>([
     {
       title: "Ordonnances ce mois",
@@ -737,9 +772,10 @@ export default function OrdonnancesPage() {
   async function fetchPrescriptions(page: number) {
     setLoading(true);
     try {
-      const response = await api<{ data: ApiPrescription[]; meta: ApiMeta }>(
-        `/prescriptions?page=${page}`,
-      );
+      const [response, statsResponse] = await Promise.all([
+        api<{ data: ApiPrescription[]; meta: ApiMeta }>(`/prescriptions?page=${page}`),
+        api<PrescriptionStats>("/prescriptions/stats"),
+      ]);
 
       const mapped: Prescription[] = response.data.map((item) => ({
         id: String(item.id),
@@ -752,6 +788,7 @@ export default function OrdonnancesPage() {
         status: mapStatus(item.status),
         medicationCount: item.medications
           ? item.medications
+              .replace(/\\n/g, "\n")
               .split("\n")
               .map((l) => l.trim())
               .filter(Boolean).length
@@ -762,62 +799,39 @@ export default function OrdonnancesPage() {
 
       setPrescriptions(mapped);
       setMeta(response.meta);
+      setPrescriptionStats(statsResponse);
 
       if (mapped.length > 0 && !selectedPrescription) {
         setSelectedPrescription(mapped[0]);
       }
 
-      const allResponse = await api<{ data: ApiPrescription[]; meta: ApiMeta }>(
-        `/prescriptions?page=1`,
-      );
-      const allTotal = allResponse.meta.total;
-      const allData = allResponse.data;
-
-      const totalMeds = allData.reduce((sum, item) => {
-        const count = item.medications
-          ? item.medications
-              .split("\n")
-              .map((l) => l.trim())
-              .filter(Boolean).length
-          : 0;
-        return sum + count;
-      }, 0);
-
-      let pendingCount = 0;
-      let deliveredCount = 0;
-      for (const item of allData) {
-        const status = mapStatus(item.status);
-        if (status === "En attente") pendingCount++;
-        if (status === "Délivrée") deliveredCount++;
-      }
-
-      const deliveredPercent = allTotal > 0 ? Math.round((deliveredCount / allTotal) * 100) : 0;
+      const deliveredPercent = statsResponse.total > 0 ? Math.round((statsResponse.delivered / statsResponse.total) * 100) : 0;
 
       setStats([
         {
           title: "Ordonnances ce mois",
-          value: String(allTotal),
-          label: "+18% vs mois dernier",
+          value: String(statsResponse.total),
+          label: "Total",
           icon: ClipboardList,
           accent: "from-[#0F766E] to-[#2DD4BF]",
         },
         {
           title: "Médicaments prescrits",
-          value: String(totalMeds),
-          label: "Ce mois",
+          value: String(statsResponse.total_medications),
+          label: "Total prescrits",
           icon: Pill,
           accent: "from-[#2563EB] to-[#60A5FA]",
         },
         {
           title: "En attente",
-          value: String(pendingCount),
+          value: String(statsResponse.pending + statsResponse.expired),
           label: "À délivrer",
           icon: Clock3,
           accent: "from-[#F59E0B] to-[#FDBA74]",
         },
         {
           title: "Délivrées",
-          value: String(deliveredCount),
+          value: String(statsResponse.delivered),
           label: `${deliveredPercent}% du total`,
           icon: CheckCircle2,
           accent: "from-[#22C55E] to-[#86EFAC]",
@@ -881,8 +895,8 @@ export default function OrdonnancesPage() {
             onNavigate={handleNavigate}
           />
           <div className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
-            <MedicationAnalyticsCard />
-            <PrescriptionStatusCard />
+            <MedicationAnalyticsCard topMedications={prescriptionStats.top_medications} />
+            <PrescriptionStatusCard stats={prescriptionStats} />
           </div>
         </section>
         <OrdonnanceDetailsPanel prescription={selectedPrescription} />

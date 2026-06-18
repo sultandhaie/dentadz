@@ -364,11 +364,33 @@ function WaitingRoomPanel({ entries, loading, onRefresh }: { entries: WaitingRoo
   const router = useRouter();
   const [acting, setActing] = useState<number | null>(null);
 
+  const statusOrder: Record<string, number> = {
+    "En consultation": 0,
+    "Prochain": 1,
+    "Arrivé": 2,
+    "En attente": 3,
+    "Terminé": 4,
+    "Absent": 5,
+  };
+
+  const sortedEntries = [...entries].sort((a, b) => {
+    const orderA = statusOrder[a.status] ?? 3;
+    const orderB = statusOrder[b.status] ?? 3;
+    return orderA - orderB;
+  });
+
+  const activeEntries = sortedEntries.filter((e) => statusOrder[e.status] <= 3);
+  const completedEntries = sortedEntries.filter((e) => statusOrder[e.status] > 3);
+  const displayEntries = [...activeEntries, ...completedEntries];
+
   const getStatusInfo = (status: string) => {
     const map: Record<string, { tone: string; action: string; color: string }> = {
       "En attente": { tone: "orange", action: "Appeler", color: "bg-[#0F766E] shadow-teal-700/20 hover:bg-[#115E59]" },
+      "Arrivé": { tone: "teal", action: "Appeler", color: "bg-[#0F766E] shadow-teal-700/20 hover:bg-[#115E59]" },
       "Prochain": { tone: "teal", action: "Commencer", color: "bg-[#2563EB] shadow-blue-700/20 hover:bg-blue-700" },
       "En consultation": { tone: "purple", action: "Terminer", color: "bg-[#7C3AED] shadow-violet-700/20 hover:bg-[#6D28D9]" },
+      "Terminé": { tone: "green", action: "", color: "" },
+      "Absent": { tone: "red", action: "", color: "" },
     };
     return map[status] ?? { tone: "orange", action: "Appeler", color: "bg-[#0F766E] shadow-teal-700/20 hover:bg-[#115E59]" };
   };
@@ -424,14 +446,18 @@ function WaitingRoomPanel({ entries, loading, onRefresh }: { entries: WaitingRoo
           <div className="flex justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-[#0F766E]" />
           </div>
-        ) : entries.length > 0 ? (
-          entries.map((item) => {
+        ) : displayEntries.length > 0 ? (
+          displayEntries.map((item) => {
             const info = getStatusInfo(item.status);
             const patientName = `${item.patient?.first_name} ${item.patient?.last_name}`;
+            const isCompleted = item.status === "Terminé" || item.status === "Absent";
             return (
               <div
                 key={item.id}
-                className="rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-white to-slate-50 p-3.5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/10 2xl:p-4"
+                className={cx(
+                  "rounded-2xl border bg-gradient-to-br from-white to-slate-50 p-3.5 transition hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-900/10 2xl:p-4",
+                  isCompleted ? "border-slate-100 opacity-60" : "border-[#E2E8F0]"
+                )}
               >
                 <div className="flex flex-wrap items-start gap-3">
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#0F172A] text-sm font-bold text-white">
@@ -444,7 +470,7 @@ function WaitingRoomPanel({ entries, loading, onRefresh }: { entries: WaitingRoo
                         {patientName}
                       </button>
                     ) : (
-                      <p className="truncate text-sm font-bold text-[#0F172A]">
+                      <p className={cx("truncate text-sm font-bold", isCompleted ? "text-[#64748B]" : "text-[#0F172A]")}>
                         {patientName}
                       </p>
                     )}
@@ -459,20 +485,22 @@ function WaitingRoomPanel({ entries, loading, onRefresh }: { entries: WaitingRoo
                     <p className="text-xs font-bold text-[#64748B]">Temps d&apos;attente</p>
                     <p className="text-lg font-bold text-[#0F172A]">{item.waiting_time || "00:00"}</p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => handleAction(item)}
-                    disabled={acting === item.id}
-                    className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white shadow-lg transition duration-200 cursor-pointer disabled:opacity-50 ${info.color}`}
-                  >
-                    {acting === item.id ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : info.action === "Terminer" ? (
-                      "Terminer (Payer)"
-                    ) : (
-                      info.action
-                    )}
-                  </button>
+                  {info.action ? (
+                    <button
+                      type="button"
+                      onClick={() => handleAction(item)}
+                      disabled={acting === item.id}
+                      className={`inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-white shadow-lg transition duration-200 cursor-pointer disabled:opacity-50 ${info.color}`}
+                    >
+                      {acting === item.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : info.action === "Terminer" ? (
+                        "Terminer (Payer)"
+                      ) : (
+                        info.action
+                      )}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             );

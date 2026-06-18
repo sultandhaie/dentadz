@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { api } from "../../../lib/api";
 
-interface Patient { id: number; first_name: string; last_name: string; phone: string; }
+interface Patient { id: number; first_name: string; last_name: string; phone: string; patient_code: string; }
 interface Treatment { id: number; name: string; price: number; }
 
 function PaymentForm() {
@@ -43,9 +43,16 @@ function PaymentForm() {
     const treatment = searchParams.get("treatment");
     const price = searchParams.get("price");
     if (pId || pName || treatment || price) {
-      setFormData(prev => ({ ...prev, patientId: pId || prev.patientId, patientSearch: pName || prev.patientSearch, treatment: treatment || prev.treatment, total: price || prev.total, paid: price || prev.paid }));
+      setFormData(prev => ({ ...prev, patientSearch: pName || prev.patientSearch, treatment: treatment || prev.treatment, total: price || prev.total, paid: price || prev.paid }));
+
+      if (pId && patients.length > 0) {
+        const found = patients.find(p => String(p.id) === pId || p.patient_code === pId);
+        if (found) {
+          setFormData(prev => ({ ...prev, patientId: String(found.id), patientSearch: `${found.first_name} ${found.last_name}` }));
+        }
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, patients]);
 
   const totalNum = parseFloat(formData.total) || 0;
   const paidNum = parseFloat(formData.paid) || 0;
